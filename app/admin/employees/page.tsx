@@ -46,8 +46,6 @@ export default function EmployeesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [syncing, setSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   useEffect(() => { fetchAll() }, [])
@@ -171,28 +169,6 @@ export default function EmployeesPage() {
     fetchAll()
   }
 
-  async function syncFromKfErp() {
-    setSyncing(true)
-    setSyncResult(null)
-    try {
-      const res = await fetch('/api/sync/kf-erp', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) {
-        setSyncResult(`Sync failed: ${data.error || 'unknown error'}`)
-        return
-      }
-      const failureNote = data.failures?.length ? ` · ${data.failures.length} row(s) failed` : ''
-      setSyncResult(
-        `Checked ${data.employeesConsidered} active kf-erp employee(s) in scope, synced ${data.departmentsSynced} department(s), added ${data.employeesInserted} and updated ${data.employeesUpdated} employee(s)${failureNote}`
-      )
-      fetchAll()
-    } catch {
-      setSyncResult('Sync failed: could not reach the server')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   return (
     <AdminLayout>
       <div className="page-header">
@@ -202,12 +178,7 @@ export default function EmployeesPage() {
             {search ? `${filteredEmployees.length} of ${employees.length}` : `${employees.length}`} employee(s) · assign each one a permission group to grant back-office access
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={syncFromKfErp} disabled={syncing}>
-            {syncing ? 'Syncing…' : '⟳ Sync from kf-erp'}
-          </button>
-          <button className="btn btn-primary" onClick={openAdd}>+ Add Employee</button>
-        </div>
+        <button className="btn btn-primary" onClick={openAdd}>+ Add Employee</button>
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -220,17 +191,6 @@ export default function EmployeesPage() {
         />
       </div>
 
-      {syncResult && (
-        <div style={{
-          marginBottom: 16, padding: '10px 14px', borderRadius: 8, fontSize: 13,
-          background: syncResult.startsWith('Sync failed') ? '#34201a' : '#17301f',
-          color: syncResult.startsWith('Sync failed') ? '#f2977e' : '#86d494',
-          border: `1px solid ${syncResult.startsWith('Sync failed') ? '#4a2e25' : '#274734'}`,
-        }}>
-          {syncResult}
-        </div>
-      )}
-
       <div className="card">
         {loading ? (
           <div className="loading"><div className="spinner" /><span>Loading…</span></div>
@@ -242,7 +202,7 @@ export default function EmployeesPage() {
               <thead>
                 <tr>
                   <th>Code</th><th>Name</th><th>Department</th><th>Driver</th>
-                  <th>Permission Group</th><th>Username</th><th>Source</th><th>Status</th><th>Actions</th>
+                  <th>Permission Group</th><th>Username</th><th>Status</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,7 +214,6 @@ export default function EmployeesPage() {
                     <td>{e.is_driver ? <span className="badge badge-blue">Driver</span> : '—'}</td>
                     <td>{groupName(e.group_id)}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', color: '#93a4b6' }}>{e.username || '—'}</td>
-                    <td>{e.kf_erp_synced_at ? <span className="badge badge-blue">kf-erp</span> : <span className="badge badge-gray">Local</span>}</td>
                     <td>
                       {e.is_active
                         ? <span className="badge badge-green">Active</span>

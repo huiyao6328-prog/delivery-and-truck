@@ -3,14 +3,14 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import AdminLayout from '@/components/admin/AdminLayout'
 
+type ListItem = { key: string; primary: string; secondary?: string; badge?: { text: string; className: string } }
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    trucks: 0,
-    drivers: 0,
-    dispatchesToday: 0,
-    inspectionsToday: 0,
-    issuesToday: 0,
-  })
+  const [truckItems, setTruckItems] = useState<ListItem[]>([])
+  const [driverItems, setDriverItems] = useState<ListItem[]>([])
+  const [dispatchItems, setDispatchItems] = useState<ListItem[]>([])
+  const [issueItems, setIssueItems] = useState<ListItem[]>([])
+  const [inspectionsToday, setInspectionsToday] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -19,20 +19,57 @@ export default function DashboardPage() {
 
   async function fetchStats() {
     const today = new Date().toISOString().slice(0, 10)
-    const [trucks, drivers, dispatchesToday, inspectionsToday, issuesToday] = await Promise.all([
-      supabase.from('trucks').select('*', { count: 'exact', head: true }).eq('is_active', true),
-      supabase.from('employees').select('*', { count: 'exact', head: true }).eq('is_driver', true).eq('is_active', true),
-      supabase.from('dispatches').select('*', { count: 'exact', head: true }).eq('dispatch_date', today),
-      supabase.from('inspections').select('*', { count: 'exact', head: true }).eq('inspection_date', today),
-      supabase.from('inspections').select('*', { count: 'exact', head: true }).eq('inspection_date', today).eq('overall_result', 'issues_found'),
+    const [truckTypesRes, trucksRes, inspectionsRes, dispatchesRes, employeesRes] = await Promise.all([
+      supabase.from('truck_types').select('id, name'),
+      supabase.from('trucks').select('id, plate_no, truck_type_id'),
+      supabase.from('inspections').select('id, truck_id, driver_id, overall_result').eq('inspection_date', today),
+      supabase.from('dispatches').select('id, truck_id, driver_id, destination, purpose').eq('dispatch_date', today),
+      supabase.from('employees').select('id, full_name'),
     ])
-    setStats({
-      trucks: trucks.count || 0,
-      drivers: drivers.count || 0,
-      dispatchesToday: dispatchesToday.count || 0,
-      inspectionsToday: inspectionsToday.count || 0,
-      issuesToday: issuesToday.count || 0,
-    })
+
+    const truckTypeName = (id: string | null) => truckTypesRes.data?.find((t) => t.id === id)?.name
+    const truck = (id: string) => trucksRes.data?.find((t) => t.id === id)
+    const employeeName = (id: string | null) => employeesRes.data?.find((e) => e.id === id)?.full_name
+
+    const inspections = inspectionsRes.data || []
+    const dispatches = dispatchesRes.data || []
+
+    // Active Trucks: trucks that had an inspection today
+    const inspectedTruckIds = [...new Set(inspections.map((i) => i.truck_id))]
+    setTruckItems(inspectedTruckIds.map((id) => {
+      const t = truck(id)
+      return { key: id, primary: t?.plate_no || '—', secondary: truckTypeName(t?.truck_type_id || null) }
+    }))
+
+    // Active Drivers: anyone who checked a truck and/or was dispatched today
+    const checkedDriverIds = new Set(inspections.map((i) => i.driver_id))
+    const dispatchedDriverIds = new Set(dispatches.map((d) => d.driver_id).filter((id): id is string => !!id))
+    const allDriverIds = [...new Set([...checkedDriverIds, ...dispatchedDriverIds])]
+    setDriverItems(allDriverIds.map((id) => {
+      const checked = checkedDriverIds.has(id)
+      const dispatched = dispatchedDriverIds.has(id)
+      const label = checked && dispatched ? 'Checked & Dispatched' : checked ? 'Checked Truck' : 'Dispatched'
+      const cls = checked && dispatched ? 'badge-orange' : checked ? 'badge-green' : 'badge-blue'
+      return { key: id, primary: employeeName(id) || '—', badge: { text: label, className: cls } }
+    }))
+
+    // Dispatches Today: trucks that went out
+    setDispatchItems(dispatches.map((d) => {
+      const t = truck(d.truck_id)
+      return { key: d.id, primary: t?.plate_no || '—', secondary: d.destination || d.purpose || undefined }
+    }))
+
+    // Issues Flagged: trucks with an issue found today
+    setIssueItems(
+      inspections
+        .filter((i) => i.overall_result === 'issues_found')
+        .map((i) => {
+          const t = truck(i.truck_id)
+          return { key: i.id, primary: t?.plate_no || '—', secondary: employeeName(i.driver_id) || undefined, badge: { text: 'Issue', className: 'badge-red' } }
+        })
+    )
+
+    setInspectionsToday(inspections.length)
     setLoading(false)
   }
 
@@ -47,31 +84,47 @@ export default function DashboardPage() {
       {loading ? (
         <div className="loading"><div className="spinner" /><span>Loading…</span></div>
       ) : (
-        <div className="stat-cards">
-          <div className="stat-card">
-            <div className="stat-label">Active Trucks</div>
-            <div className="stat-value">{stats.trucks}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Active Drivers</div>
-            <div className="stat-value">{stats.drivers}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Dispatches Today</div>
-            <div className="stat-value">{stats.dispatchesToday}</div>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+          <ListCard title="Active Trucks" subtitle="Inspected today" items={truckItems} emptyText="No trucks inspected yet today." />
+          <ListCard title="Active Drivers" subtitle="Checked or dispatched today" items={driverItems} emptyText="No driver activity yet today." />
+          <ListCard title="Dispatches Today" subtitle="Trucks sent out" items={dispatchItems} emptyText="No dispatches recorded today." />
+          <ListCard title="Issues Flagged" subtitle="Trucks with a problem today" items={issueItems} emptyText="No issues flagged today." />
           <div className="stat-card">
             <div className="stat-label">Inspections Today</div>
-            <div className="stat-value">{stats.inspectionsToday}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Issues Flagged Today</div>
-            <div className="stat-value" style={{ color: stats.issuesToday > 0 ? '#f2977e' : '#e9eef3' }}>
-              {stats.issuesToday}
-            </div>
+            <div className="stat-value">{inspectionsToday}</div>
           </div>
         </div>
       )}
     </AdminLayout>
+  )
+}
+
+function ListCard({ title, subtitle, items, emptyText }: { title: string; subtitle: string; items: ListItem[]; emptyText: string }) {
+  return (
+    <div className="card">
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid #26374a', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#e9eef3' }}>{title}</div>
+          <div style={{ fontSize: 11.5, color: '#64798d', marginTop: 2 }}>{subtitle}</div>
+        </div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 700, color: '#e37a42' }}>{items.length}</div>
+      </div>
+      <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+        {items.length === 0 ? (
+          <div className="empty-state" style={{ padding: '22px 16px', fontSize: 12.5 }}>{emptyText}</div>
+        ) : items.map((item) => (
+          <div key={item.key} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+            padding: '9px 16px', borderBottom: '1px solid #1e2c3a',
+          }}>
+            <div>
+              <div style={{ fontSize: 13.5, color: '#e9eef3', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{item.primary}</div>
+              {item.secondary && <div style={{ fontSize: 11.5, color: '#64798d', marginTop: 1 }}>{item.secondary}</div>}
+            </div>
+            {item.badge && <span className={`badge ${item.badge.className}`} style={{ whiteSpace: 'nowrap' }}>{item.badge.text}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

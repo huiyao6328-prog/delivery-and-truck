@@ -63,16 +63,26 @@ export default function HomePage() {
         <div style={styles.greeting}>Hi, {session.employee.full_name}</div>
 
         <Link href="/inspection/new" style={styles.primaryCard}>
-          <div>
-            <div style={styles.primaryCardTitle}>New Daily Inspection</div>
+          <div style={styles.cardIconWrap}>
+            <ClipboardIcon />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={styles.primaryCardTitle}>Daily Inspection</div>
             <div style={styles.primaryCardSub}>Pre-trip checklist — fluids, tires, lights, brakes &amp; safety gear</div>
           </div>
           <div style={styles.arrow}>→</div>
         </Link>
 
         {hasAnyBackOfficeAccess(session) && (
-          <Link href="/admin" style={styles.secondaryCard}>
-            Go to Back Office
+          <Link href="/admin" style={styles.settingsCard}>
+            <div style={{ ...styles.cardIconWrap, background: 'rgba(255,255,255,0.08)' }}>
+              <GearIcon />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={styles.primaryCardTitle}>Settings</div>
+              <div style={styles.primaryCardSub}>Employees, trucks, dispatches &amp; back-office setup</div>
+            </div>
+            <div style={styles.arrow}>→</div>
           </Link>
         )}
 
@@ -101,6 +111,25 @@ export default function HomePage() {
   )
 }
 
+function ClipboardIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="6" y="4" width="12" height="17" rx="2" />
+      <path d="M9 4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z" />
+      <path d="M9 12.5 11 14.5 15 10.5" />
+    </svg>
+  )
+}
+
+function GearIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  )
+}
+
 const styles: Record<string, React.CSSProperties> = {
   loadingPage: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#93a4b6', fontSize: 14 },
   page: { minHeight: '100vh', background: '#0f1b28' },
@@ -114,18 +143,23 @@ const styles: Record<string, React.CSSProperties> = {
   main: { maxWidth: 480, margin: '0 auto', padding: '20px 16px 40px' },
   greeting: { fontSize: 14, color: '#93a4b6', marginBottom: 16 },
   primaryCard: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    display: 'flex', alignItems: 'center', gap: 14,
     background: '#0a141e', color: '#fff', borderRadius: 14, padding: '20px', textDecoration: 'none',
     marginBottom: 12, border: '1px solid #26374a',
   },
+  settingsCard: {
+    display: 'flex', alignItems: 'center', gap: 14,
+    background: '#1c2b3a', color: '#fff', borderRadius: 14, padding: '20px', textDecoration: 'none',
+    marginBottom: 24, border: '1px solid #2e4053',
+  },
+  cardIconWrap: {
+    flexShrink: 0, width: 40, height: 40, borderRadius: 10,
+    background: 'rgba(232,112,58,0.18)', color: '#e37a42',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
   primaryCardTitle: { fontSize: 17, fontWeight: 700 },
   primaryCardSub: { fontSize: 12.5, color: '#93a4b6', marginTop: 4, maxWidth: 280 },
-  arrow: { fontSize: 22, color: '#ec7f43' },
-  secondaryCard: {
-    display: 'block', textAlign: 'center', background: '#16232f', border: '1px solid #28394a',
-    borderRadius: 12, padding: '13px', fontSize: 14, fontWeight: 600, color: '#e9eef3', textDecoration: 'none',
-    marginBottom: 24,
-  },
+  arrow: { fontSize: 22, color: '#ec7f43', flexShrink: 0 },
   sectionTitle: { fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#64798d', marginBottom: 10 },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   listRow: {
