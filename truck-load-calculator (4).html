@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>貨櫃裝載試算 Load Planner</title>
+<style>
+  :root{
+    --ink:#1b2a3d;
+    --ink-soft:#3d5066;
+    --paper:#f5f3ee;
+    --paper-line:#dcd7c9;
+    --accent:#e8703a;
+    --accent-soft:#f6d9c8;
+    --teal:#3d6b6b;
+    --line:#c9c2ad;
+    --ok-bg:#e7f0e7; --ok-fg:#2c5a2c;
+    --err-bg:#f7e3dd; --err-fg:#a13c1c;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, 'Segoe UI', 'Noto Sans TC', sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color:var(--ink);
+    font-family:var(--sans);
+    padding:32px;
+  }
+
+  .wrap{max-width:1220px;margin:0 auto;}
+
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:14px;
+    margin-bottom:24px;
+  }
+  header h1{font-size:22px;letter-spacing:0.02em;margin:0;}
+  header h1 small{
+    display:block;font-family:var(--mono);font-size:12px;color:var(--ink-soft);
+    font-weight:500;letter-spacing:0.08em;text-transform:uppercase;margin-top:4px;
+  }
+  header .badge{
+    font-family:var(--mono);font-size:11px;color:var(--teal);
+    border:1px solid var(--teal);padding:4px 10px;border-radius:2px;white-space:nowrap;
+  }
+
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start;}
+  @media (max-width:900px){.layout{grid-template-columns:1fr;}}
+
+  .panel{background:#fff;border:1px solid var(--line);border-radius:4px;padding:20px;}
+  .panel h2{
+    font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;
+    color:var(--ink-soft);margin:0 0 14px 0;padding-bottom:8px;border-bottom:1px solid var(--paper-line);
+  }
+
+  label{display:block;font-size:12px;color:var(--ink-soft);margin:12px 0 5px;}
+  input, select{
+    width:100%;padding:8px 10px;font-family:var(--mono);font-size:13px;
+    border:1px solid var(--line);border-radius:3px;background:#fdfcf9;color:var(--ink);
+  }
+  input:focus, select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+
+  button{
+    font-family:var(--sans);font-weight:600;font-size:13px;border:none;
+    border-radius:3px;padding:10px 16px;cursor:pointer;transition:transform .08s ease;
+  }
+  button:active{transform:translateY(1px);}
+  .btn-primary{background:var(--ink);color:#fff;width:100%;margin-top:16px;}
+  .btn-primary:hover{background:#0f1826;}
+  .btn-primary:disabled{background:#9aa4b0;cursor:not-allowed;}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line);width:auto;margin-top:0;}
+  .btn-ghost:hover{border-color:var(--ink);}
+  .btn-accent{background:var(--accent);color:#fff;width:auto;margin-top:0;}
+  .btn-accent:hover{background:#d6602c;}
+  .btn-small{padding:6px 10px;font-size:12px;}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+
+  .status{font-family:var(--mono);font-size:11.5px;margin-top:10px;padding:8px 10px;border-radius:3px;display:none;}
+  .status.show{display:block;}
+  .status.ok{background:var(--ok-bg);color:var(--ok-fg);}
+  .status.err{background:var(--err-bg);color:var(--err-fg);}
+  .status.info{background:#eef1f5;color:var(--ink-soft);}
+
+  .car-meta{
+    font-family:var(--mono);font-size:12px;color:var(--ink-soft);line-height:1.9;
+    margin-top:12px;padding-top:10px;border-top:1px solid var(--paper-line);
+  }
+  .car-meta b{color:var(--ink);}
+
+  .disabled-note{font-size:12px;color:var(--ink-soft);padding:30px 6px;text-align:center;}
+
+  /* tabs */
+  .tabbar{display:flex;gap:4px;border-bottom:2px solid var(--ink);margin-bottom:20px;}
+  .tab-btn{
+    background:none;border:none;padding:10px 16px;font-family:var(--mono);font-size:12px;
+    text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);cursor:pointer;
+    border-bottom:3px solid transparent;margin-bottom:-2px;
+  }
+  .tab-btn.active{color:var(--ink);border-bottom-color:var(--accent);font-weight:600;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    text-align:left;font-family:var(--mono);font-size:11px;text-transform:uppercase;
+    letter-spacing:0.05em;color:var(--ink-soft);border-bottom:1px solid var(--ink);padding:8px 10px;
+  }
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--paper-line);}
+  tbody tr.clickable{cursor:pointer;}
+  tbody tr.clickable:hover{background:var(--accent-soft);}
+  tbody tr.active{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent);}
+  td.num{font-family:var(--mono);text-align:right;}
+  td.total{font-family:var(--mono);text-align:right;font-weight:700;color:var(--ink);}
+
+  .empty{padding:40px 10px;text-align:center;color:var(--ink-soft);font-size:13px;}
+
+  .viz-row{display:grid;grid-template-columns:1.1fr 0.6fr;gap:20px;margin-top:20px;}
+  @media (max-width:900px){.viz-row{grid-template-columns:1fr;}}
+  .viz-title{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;}
+  .viz-box{border:1px solid var(--line);border-radius:4px;background:#fdfcf9;padding:14px;}
+  .legend{display:flex;gap:16px;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .swatch{width:11px;height:11px;border-radius:2px;display:inline-block;}
+
+  .result-caption{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:12px;line-height:1.8;}
+  .result-caption b{color:var(--ink);}
+  .result-caption .accent{color:var(--accent);font-weight:700;}
+
+  /* dynamic product rows */
+  .prow{display:grid;grid-template-columns:1fr 100px 34px;gap:8px;margin-bottom:8px;align-items:center;}
+  .prow select, .prow input{margin:0;}
+  .prow .rm{
+    width:34px;height:34px;border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+    border-radius:3px;cursor:pointer;font-size:16px;line-height:1;padding:0;
+  }
+  .prow .rm:hover{border-color:var(--err-fg);color:var(--err-fg);}
+
+  /* verdict banner */
+  .verdict{
+    display:flex;align-items:center;justify-content:space-between;padding:14px 18px;
+    border-radius:4px;font-family:var(--mono);margin-bottom:16px;flex-wrap:wrap;gap:10px;
+  }
+  .verdict.fit{background:var(--ok-bg);color:var(--ok-fg);}
+  .verdict.nofit{background:var(--err-bg);color:var(--err-fg);}
+  .verdict .big{font-size:15px;font-weight:700;}
+  .verdict .sub{font-size:11.5px;opacity:0.85;}
+
+  .bar-track{background:var(--paper-line);border-radius:20px;height:10px;overflow:hidden;margin-top:4px;}
+  .bar-fill{height:100%;border-radius:20px;}
+
+  .car-card{
+    border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin-bottom:12px;background:#fdfcf9;
+  }
+  .car-card.fit{border-left:4px solid var(--teal);}
+  .car-card.nofit{border-left:4px solid var(--err-fg);opacity:0.75;}
+  .car-card .cc-head{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);}
+  .car-card .cc-head b{font-size:14px;}
+  .car-card .cc-sub{font-size:11.5px;color:var(--ink-soft);margin-top:4px;font-family:var(--mono);}
+  .car-card .cc-detail{margin-top:8px;font-size:12px;color:var(--ink-soft);}
+  .car-card .cc-detail div{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px dashed var(--paper-line);}
+
+  .rec-note{font-size:12px;color:var(--ink-soft);margin-top:10px;line-height:1.7;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>貨櫃裝載試算<small>TRUCK LOAD PLANNER · box-count per cargo bay</small></h1>
+    <span class="badge">KFP · zz_car_master × zz_pack_box_size_master</span>
+  </header>
+
+  <div class="layout">
+
+    <!-- 左側：連線設定 -->
+    <div class="panel">
+      <h2>Supabase 連線</h2>
+      <label for="sbUrl">Project URL</label>
+      <input id="sbUrl" placeholder="https://xxxx.supabase.co" autocomplete="off">
+      <label for="sbKey">anon public key</label>
+      <input id="sbKey" type="password" placeholder="eyJhbGciOi..." autocomplete="off">
+      <button class="btn-primary" id="connectBtn">連線並讀取資料</button>
+      <div class="status" id="connStatus"></div>
+      <div class="car-meta" id="globalMeta"></div>
+    </div>
+
+    <!-- 右側：三種模式 -->
+    <div class="panel" id="mainPanel">
+      <div class="tabbar">
+        <button class="tab-btn active" data-tab="single">01 · 單一產品容量</button>
+        <button class="tab-btn" data-tab="fit">02 · 混裝裝載確認</button>
+        <button class="tab-btn" data-tab="recommend">03 · 貨車推薦</button>
+      </div>
+
+      <div id="notConnected" class="disabled-note">請先在左側連線 Supabase，讀取貨車與包裝箱資料。</div>
+
+      <div id="tabs-wrap" style="display:none;">
+
+        <!-- ===== TAB 1：單一產品容量 ===== -->
+        <div class="tab-panel active" id="tab-single">
+
+          <div class="btn-row" style="margin-top:0;margin-bottom:16px;">
+            <button class="btn-ghost btn-small" id="s_modeToggle">切換到清單模式</button>
+          </div>
+
+          <div id="s_queryView">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div>
+                <label for="s_carSelect">選擇貨車 car_number</label>
+                <select id="s_carSelect"></select>
+              </div>
+              <div>
+                <label for="s_boxSelect">選擇包裝箱 box_name_id</label>
+                <select id="s_boxSelect"></select>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-accent" id="s_computeBtn">計算可裝載數量</button>
+              <button class="btn-ghost" id="s_saveBtn" style="display:none;">儲存這筆結果</button>
+              <button class="btn-ghost" id="s_exportBtn" style="display:none;">匯出 Excel</button>
+            </div>
+            <div class="status" id="s_saveStatus"></div>
+
+            <div id="s_result"></div>
+            <div class="viz-row" id="s_vizRow" style="display:none;">
+              <div class="viz-box">
+                <div class="viz-title">俯視圖 · 車廂地板排列（Top View）</div>
+                <div id="s_topView"></div>
+                <div class="legend">
+                  <span><i class="swatch" style="background:var(--accent-soft);border:1px solid var(--accent);"></i>箱子 footprint</span>
+                  <span><i class="swatch" style="background:repeating-linear-gradient(45deg,#e3ded0,#e3ded0 3px,#f5f3ee 3px,#f5f3ee 6px);border:1px solid var(--line);"></i>剩餘空間</span>
+                </div>
+              </div>
+              <div class="viz-box">
+                <div class="viz-title">側視圖 · 堆疊層數（Side View）</div>
+                <div id="s_sideView"></div>
+                <div class="result-caption" id="s_caption"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="s_listView" style="display:none;">
+            <div id="s_listArea"></div>
+          </div>
+        </div>
+
+        <!-- ===== TAB 2：混裝裝載確認 ===== -->
+        <div class="tab-panel" id="tab-fit">
+          <label for="f_carSelect">選擇貨車 car_number</label>
+          <select id="f_carSelect"></select>
+          <div class="car-meta" id="f_carMeta"></div>
+
+          <label style="margin-top:18px;">要裝載的產品與數量</label>
+          <div id="f_rows"></div>
+          <div class="btn-row">
+            <button class="btn-ghost btn-small" id="f_addRow">＋ 新增產品</button>
+            <button class="btn-accent" id="f_checkBtn">確認是否放得下</button>
+          </div>
+
+          <div id="f_result" style="margin-top:20px;"></div>
+        </div>
+
+        <!-- ===== TAB 3：貨車推薦 ===== -->
+        <div class="tab-panel" id="tab-recommend">
+          <label>要裝載的產品與數量</label>
+          <div id="r_rows"></div>
+          <div class="btn-row">
+            <button class="btn-ghost btn-small" id="r_addRow">＋ 新增產品</button>
+            <button class="btn-accent" id="r_findBtn">找出可以裝的貨車</button>
+          </div>
+
+          <div id="r_result" style="margin-top:20px;"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let SB_URL = '', SB_KEY = '';
+let cars = [], boxes = [];
+let currentResults = [];
+let activeBoxId = null;
+let storageAvailable = null;
+let memoryRecords = [];
+
+const el = id => document.getElementById(id);
+
+/* ---------------- Excel 匯出輔助 ---------------- */
+function safeFilePart(str){
+  return String(str ?? '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g,'_').slice(0,40);
+}
+function downloadSheet(filename, sheetName, rows){
+  if(typeof XLSX === 'undefined'){
+    alert('Excel 匯出元件尚未載入完成，請稍後再試一次。');
+    return;
+  }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0,31));
+  XLSX.writeFile(wb, filename);
+}
+function downloadSheets(filename, sheetsObj){
+  if(typeof XLSX === 'undefined'){
+    alert('Excel 匯出元件尚未載入完成，請稍後再試一次。');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  Object.entries(sheetsObj).forEach(([name, rows])=>{
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0,31));
+  });
+  XLSX.writeFile(wb, filename);
+}
+
+/* ---------------- Supabase ---------------- */
+function setStatus(msg, type){
+  const s = el('connStatus');
+  s.textContent = msg;
+  s.className = 'status show ' + type;
+}
+
+async function sbFetch(table, params){
+  const url = `${SB_URL.replace(/\/$/,'')}/rest/v1/${table}?select=*${params||''}`;
+  const res = await fetch(url, { headers:{ 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(`${table} 讀取失敗 (${res.status}): ${t.slice(0,180)}`);
+  }
+  return res.json();
+}
+
+el('connectBtn').addEventListener('click', async () => {
+  SB_URL = el('sbUrl').value.trim();
+  SB_KEY = el('sbKey').value.trim();
+  if(!SB_URL || !SB_KEY){ setStatus('請輸入 Project URL 與 anon key', 'err'); return; }
+  el('connectBtn').disabled = true;
+  setStatus('讀取中 …', 'info');
+  try{
+    const [carData, boxData] = await Promise.all([ sbFetch('zz_car_master'), sbFetch('zz_pack_box_size_master') ]);
+
+    const carRaw = carData.length, boxRaw = boxData.length;
+    cars = carData.filter(carHasValidDims);
+    boxes = boxData.filter(boxHasValidDims);
+    const carSkipped = carRaw - cars.length;
+    const boxSkipped = boxRaw - boxes.length;
+
+    if(cars.length === 0 || boxes.length === 0){
+      setStatus('連線成功，但貨車或包裝箱都沒有完整的長寬高資料。', 'err');
+      el('connectBtn').disabled = false; return;
+    }
+    setStatus(`連線成功 — 貨車 ${cars.length} 台，包裝箱 ${boxes.length} 種`, 'ok');
+    el('globalMeta').innerHTML = `貨車數　<b>${cars.length}</b>${carSkipped?`（略過 ${carSkipped} 台缺尺寸）`:''}<br>包裝箱種類　<b>${boxes.length}</b>${boxSkipped?`（略過 ${boxSkipped} 種缺尺寸）`:''}`;
+    initAllTabs();
+    el('notConnected').style.display = 'none';
+    el('tabs-wrap').style.display = 'block';
+  }catch(err){ setStatus(err.message, 'err'); }
+  el('connectBtn').disabled = false;
+});
+
+/* ---------------- Tabs ---------------- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    el('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+function carOptionsHtml(){
+  return cars.map((c,i)=>`<option value="${i}">${c.car_number ?? '(未命名)'} — ${c.long_n}×${c.wide_n}×${c.high_n}</option>`).join('');
+}
+function boxOptionsHtml(){
+  return boxes.map((b,i)=>{
+    const pq = getPackingQty(b);
+    const pqLabel = pq > 1 ? ` · 每箱 ${pq} pcs` : '';
+    return `<option value="${i}">${b.box_name_id} (${b.box_width}×${b.box_long}×${b.box_height})${pqLabel}</option>`;
+  }).join('');
+}
+function getPackingQty(box){
+  const pq = Number(box.packing_qty);
+  return Number.isFinite(pq) && pq > 0 ? pq : 1;
+}
+
+function initAllTabs(){
+  // tab1
+  el('s_carSelect').innerHTML = carOptionsHtml();
+  el('s_boxSelect').innerHTML = boxOptionsHtml();
+  el('s_carSelect').onchange = computeSingle;
+  el('s_boxSelect').onchange = computeSingle;
+  computeSingle();
+
+  // tab2
+  el('f_carSelect').innerHTML = carOptionsHtml();
+  el('f_carSelect').onchange = updateFitCarMeta;
+  updateFitCarMeta();
+  el('f_rows').innerHTML = '';
+  addProductRow('f_rows');
+
+  // tab3
+  el('r_rows').innerHTML = '';
+  addProductRow('r_rows');
+}
+
+/* ---------------- Core calc ---------------- */
+function carHasValidDims(car){
+  const W = Number(car.wide_n), L = Number(car.long_n), H = Number(car.high_n);
+  return Number.isFinite(W) && W>0 && Number.isFinite(L) && L>0 && Number.isFinite(H) && H>0;
+}
+function boxHasValidDims(box){
+  const bw = Number(box.box_width), bl = Number(box.box_long), bh = Number(box.box_height);
+  return Number.isFinite(bw) && bw>0 && Number.isFinite(bl) && bl>0 && Number.isFinite(bh) && bh>0;
+}
+
+function computeForBox(car, box){
+  const W = Number(car.wide_n), L = Number(car.long_n), H = Number(car.high_n);
+  const bw = Number(box.box_width), bl = Number(box.box_long), bh = Number(box.box_height);
+  if(!bw || !bl || !bh) return null;
+
+  const rowsA = Math.floor(W/bw), colsA = Math.floor(L/bl), countA = rowsA*colsA;
+  const rowsB = Math.floor(W/bl), colsB = Math.floor(L/bw), countB = rowsB*colsB;
+
+  let rows, cols, footW, footL, footprint;
+  if(countA >= countB){ rows=rowsA; cols=colsA; footprint=countA; footW=bw; footL=bl; }
+  else{ rows=rowsB; cols=colsB; footprint=countB; footW=bl; footL=bw; }
+
+  const layers = Math.floor(H/bh);
+  const total = footprint*layers;
+
+  let fits = true, reason = '';
+  if(footprint <= 0){ fits = false; reason = '箱子長寬放不進車廂地板（兩種方向都排不下）'; }
+  else if(layers <= 0){ fits = false; reason = '箱子高度超過車廂高度，無法堆疊'; }
+
+  const packingQty = getPackingQty(box);
+  const totalUnits = total * packingQty;
+
+  return { box_name_id: box.box_name_id, rows, cols, footprint, footW, footL, bh, layers, total,
+    usedW: rows*footW, usedL: cols*footL, usedH: layers*bh, carW:W, carL:L, carH:H, fits, reason,
+    packingQty, totalUnits };
+}
+
+// 用於混裝檢查：回傳該箱型最佳方向 footprint 資訊（不含數量）
+function bestOrientation(car, box){
+  const W=Number(car.wide_n), L=Number(car.long_n), H=Number(car.high_n);
+  const bw=Number(box.box_width), bl=Number(box.box_long), bh=Number(box.box_height);
+  const rowsA=Math.floor(W/bw), colsA=Math.floor(L/bl), countA=rowsA*colsA;
+  const rowsB=Math.floor(W/bl), colsB=Math.floor(L/bw), countB=rowsB*colsB;
+  let footW, footL, possible = (countA>0 || countB>0);
+  if(countA>=countB){ footW=bw; footL=bl; } else { footW=bl; footL=bw; }
+  const layers = Math.floor(H/bh);
+  return { possible: possible && layers>0, footW, footL, layers, layersOk: layers>0 };
+}
+
+// 混裝可行性檢查（樓地板面積估算法）
+function checkFit(car, items){
+  const W=Number(car.wide_n), L=Number(car.long_n);
+  const totalArea = W*L;
+  let usedArea = 0, fits = true, totalBoxes = 0, totalUnits = 0;
+  const perProduct = items.map(({box, qty})=>{
+    const packingQty = getPackingQty(box);
+    const unitQty = qty * packingQty;
+    totalBoxes += qty;
+    totalUnits += unitQty;
+    const o = bestOrientation(car, box);
+    if(!o.possible){
+      fits = false;
+      return { box_name_id: box.box_name_id, qty, packingQty, unitQty, possible:false,
+        reason: !o.layersOk ? '箱高超過車廂高度' : '箱子長寬放不進車廂地板' };
+    }
+    const columnsNeeded = Math.ceil(qty / o.layers);
+    const areaNeeded = columnsNeeded * o.footW * o.footL;
+    usedArea += areaNeeded;
+    return { box_name_id: box.box_name_id, qty, packingQty, unitQty, possible:true, layers:o.layers,
+      columnsNeeded, footW:o.footW, footL:o.footL, areaNeeded };
+  });
+  if(usedArea > totalArea) fits = false;
+  return { fits, usedArea, totalArea, perProduct, ratio: totalArea? usedArea/totalArea : 0, totalBoxes, totalUnits };
+}
+
+/* ---------------- TAB 1：單一產品容量 ---------------- */
+function computeSingle(){
+  const car = cars[parseInt(el('s_carSelect').value,10)];
+  const box = boxes[parseInt(el('s_boxSelect').value,10)];
+  if(!car || !box) return;
+  const r = computeForBox(car, box);
+  if(!r){
+    el('s_result').innerHTML = '<div class="empty">此包裝箱缺少完整尺寸資料。</div>';
+    el('s_vizRow').style.display='none';
+    el('s_saveBtn').style.display='none';
+    currentResults = [];
+    return;
+  }
+  r.car_number = car.car_number;
+
+  if(!r.fits){
+    el('s_result').innerHTML = `
+      <div class="verdict nofit" style="margin-top:16px;">
+        <div>
+          <div class="big">放不下</div>
+          <div class="sub">貨車 ${car.car_number}　／　箱型 ${r.box_name_id}　—　${r.reason}</div>
+        </div>
+      </div>`;
+    el('s_vizRow').style.display = 'none';
+    el('s_saveBtn').style.display = 'none';
+    el('s_exportBtn').style.display = 'none';
+    currentResults = [];
+    return;
+  }
+
+  currentResults = [r];
+  const pqLine = r.packingQty > 1
+    ? `每箱包裝　<b>${r.packingQty.toLocaleString()}</b> pcs　／　總數量　<span class="accent">${r.totalUnits.toLocaleString()} pcs</span><br>`
+    : '';
+  el('s_result').innerHTML = `
+    <div class="result-caption" style="margin-top:16px;">
+      貨車　<b>${car.car_number}</b>　／　箱型　<b>${r.box_name_id}</b><br>
+      底層排列　<b>${r.rows} × ${r.cols}</b> ＝ ${r.footprint} 箱/層　／　堆疊　<b>${r.layers}</b> 層<br>
+      總箱數　<span class="accent">${r.total.toLocaleString()} 箱</span><br>
+      ${pqLine}
+    </div>`;
+  el('s_saveBtn').style.display = 'inline-block';
+  el('s_exportBtn').style.display = 'inline-block';
+  renderVizInto('s_topView','s_sideView','s_caption', r);
+  el('s_vizRow').style.display = 'grid';
+}
+
+el('s_computeBtn').addEventListener('click', computeSingle);
+
+el('s_saveBtn').addEventListener('click', async ()=>{
+  const r = currentResults[0];
+  if(!r) return;
+  const records = await loadRecords();
+  records.unshift({
+    id: Date.now(),
+    car_number: r.car_number,
+    box_name_id: r.box_name_id,
+    rows: r.rows, cols: r.cols, layers: r.layers, total: r.total,
+    packingQty: r.packingQty, totalUnits: r.totalUnits,
+    savedAt: new Date().toLocaleString('zh-TW')
+  });
+  await saveRecords(records);
+  const s = el('s_saveStatus');
+  s.textContent = storageAvailable ? '已儲存（雲端）' : '已儲存（僅本次畫面，未偵測到雲端儲存環境）';
+  s.className = 'status show ' + (storageAvailable ? 'ok' : 'info');
+});
+
+el('s_exportBtn').addEventListener('click', ()=>{
+  const r = currentResults[0];
+  if(!r) return;
+  downloadSheet(
+    `單一產品容量_${safeFilePart(r.car_number)}_${safeFilePart(r.box_name_id)}.xlsx`,
+    '單一產品容量',
+    [{
+      '貨車': r.car_number,
+      '包裝箱': r.box_name_id,
+      '車廂長': r.carL, '車廂寬': r.carW, '車廂高': r.carH,
+      '底層排列(列)': r.rows, '底層排列(行)': r.cols, '每層箱數': r.footprint,
+      '堆疊層數': r.layers, '總箱數': r.total,
+      '每箱包裝數量': r.packingQty, '總數量(pcs)': r.totalUnits
+    }]
+  );
+});
+
+el('s_modeToggle').addEventListener('click', async ()=>{
+  const inList = el('s_listView').style.display !== 'none';
+  if(inList){
+    el('s_listView').style.display = 'none';
+    el('s_queryView').style.display = 'block';
+    el('s_modeToggle').textContent = '切換到清單模式';
+  }else{
+    el('s_queryView').style.display = 'none';
+    el('s_listView').style.display = 'block';
+    el('s_modeToggle').textContent = '切換到查詢模式';
+    await renderRecordsList();
+  }
+});
+
+async function loadRecords(){
+  if(storageAvailable === false) return memoryRecords;
+  try{
+    const r = await window.storage.get('capacity_records');
+    storageAvailable = true;
+    return r ? JSON.parse(r.value) : [];
+  }catch(e){
+    storageAvailable = false;
+    return memoryRecords;
+  }
+}
+async function saveRecords(arr){
+  if(storageAvailable){
+    try{ await window.storage.set('capacity_records', JSON.stringify(arr)); memoryRecords = arr; return; }
+    catch(e){ storageAvailable = false; }
+  }
+  memoryRecords = arr;
+}
+
+async function renderRecordsList(){
+  const records = await loadRecords();
+  if(records.length === 0){
+    el('s_listArea').innerHTML = '<div class="empty">目前沒有儲存的紀錄。</div>';
+    return;
+  }
+  const rows = records.map(r=>`
+    <tr>
+      <td>${r.savedAt}</td>
+      <td>${r.car_number}</td>
+      <td>${r.box_name_id}</td>
+      <td class="num">${r.rows} × ${r.cols}</td>
+      <td class="num">${r.layers}</td>
+      <td class="total">${r.total.toLocaleString()}</td>
+      <td class="num">${(r.totalUnits ?? 0).toLocaleString()}</td>
+      <td><button class="btn-ghost btn-small rm-record" data-id="${r.id}">刪除</button></td>
+    </tr>`).join('');
+  el('s_listArea').innerHTML = `
+    <div class="btn-row" style="margin-top:0;">
+      <button class="btn-ghost btn-small" id="clearAllBtn">清空全部紀錄</button>
+      <button class="btn-ghost btn-small" id="exportAllRecordsBtn">匯出全部紀錄 Excel</button>
+    </div>
+    <table style="margin-top:12px;">
+      <thead><tr><th>時間</th><th>貨車</th><th>包裝箱</th><th style="text-align:right;">排列</th><th style="text-align:right;">層數</th><th style="text-align:right;">總箱數</th><th style="text-align:right;">總數量(pcs)</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  el('clearAllBtn').addEventListener('click', async ()=>{
+    await saveRecords([]);
+    renderRecordsList();
+  });
+  el('exportAllRecordsBtn').addEventListener('click', ()=>{
+    downloadSheet(
+      `單一產品容量_全部紀錄.xlsx`,
+      '全部紀錄',
+      records.map(r=>({
+        '儲存時間': r.savedAt, '貨車': r.car_number, '包裝箱': r.box_name_id,
+        '底層排列(列)': r.rows, '底層排列(行)': r.cols,
+        '堆疊層數': r.layers, '總箱數': r.total,
+        '每箱包裝數量': r.packingQty ?? '', '總數量(pcs)': r.totalUnits ?? ''
+      }))
+    );
+  });
+  document.querySelectorAll('.rm-record').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const records2 = await loadRecords();
+      const filtered = records2.filter(x=>String(x.id)!==b.dataset.id);
+      await saveRecords(filtered);
+      renderRecordsList();
+    });
+  });
+}
+
+function renderVizInto(topId, sideId, capId, r){
+  const scale = Math.min(560/r.carL, 300/r.carW);
+  const carPxL = r.carL*scale, carPxW = r.carW*scale;
+  const boxPxL = r.footL*scale, boxPxW = r.footW*scale;
+  let cells='';
+  for(let row=0; row<r.rows; row++){
+    for(let col=0; col<r.cols; col++){
+      cells += `<rect x="${col*boxPxL}" y="${row*boxPxW}" width="${boxPxL-2}" height="${boxPxW-2}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1"></rect>`;
+    }
+  }
+  const usedPxL = r.cols*boxPxL, usedPxW = r.rows*boxPxW;
+  let leftover='';
+  if(usedPxL < carPxL) leftover += `<rect x="${usedPxL}" y="0" width="${carPxL-usedPxL}" height="${carPxW}" fill="url(#hatch)"></rect>`;
+  if(usedPxW < carPxW) leftover += `<rect x="0" y="${usedPxW}" width="${carPxL}" height="${carPxW-usedPxW}" fill="url(#hatch)"></rect>`;
+
+  el(topId).innerHTML = `
+    <svg viewBox="0 0 ${carPxL+4} ${carPxW+4}" width="100%" height="${Math.max(carPxW+4,160)}" style="max-width:600px;display:block;">
+      <defs><pattern id="hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+        <rect width="6" height="6" fill="#f5f3ee"></rect><line x1="0" y1="0" x2="0" y2="6" stroke="#e3ded0" stroke-width="3"></line>
+      </pattern></defs>
+      <rect x="1" y="1" width="${carPxL}" height="${carPxW}" fill="#fff" stroke="var(--ink)" stroke-width="1.5"></rect>
+      ${leftover}${cells}
+    </svg>`;
+
+  const sScale = Math.min(120/r.carH, 40);
+  const carPxH = r.carH*sScale, layerPxH = r.bh*sScale;
+  let layerRects='';
+  for(let i=0;i<r.layers;i++){
+    layerRects += `<rect x="1" y="${carPxH-(i+1)*layerPxH}" width="140" height="${layerPxH-2}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1"></rect>`;
+  }
+  const usedPxH = r.layers*layerPxH;
+  let leftoverH='';
+  if(usedPxH < carPxH) leftoverH = `<rect x="1" y="1" width="140" height="${carPxH-usedPxH}" fill="url(#hatchv)"></rect>`;
+
+  el(sideId).innerHTML = `
+    <svg viewBox="0 0 144 ${carPxH+4}" width="100%" height="${Math.max(carPxH+4,160)}" style="max-width:220px;display:block;margin:0 auto;">
+      <defs><pattern id="hatchv" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+        <rect width="6" height="6" fill="#f5f3ee"></rect><line x1="0" y1="0" x2="0" y2="6" stroke="#e3ded0" stroke-width="3"></line>
+      </pattern></defs>
+      <rect x="1" y="1" width="140" height="${carPxH}" fill="#fff" stroke="var(--ink)" stroke-width="1.5"></rect>
+      ${leftoverH}${layerRects}
+    </svg>`;
+
+  el(capId).innerHTML =
+    `地板利用　${r.usedW.toFixed(0)} × ${r.usedL.toFixed(0)} ／ ${r.carW} × ${r.carL}<br>高度利用　${r.usedH.toFixed(0)} ／ ${r.carH}`;
+}
+
+/* ---------------- 動態產品列（tab2 / tab3 共用） ---------------- */
+function addProductRow(containerId){
+  const container = el(containerId);
+  const rowId = 'row_' + Math.random().toString(36).slice(2,9);
+  const div = document.createElement('div');
+  div.className = 'prow';
+  div.dataset.rowId = rowId;
+  div.innerHTML = `
+    <select class="prow-box">${boxOptionsHtml()}</select>
+    <input class="prow-qty" type="number" min="1" value="1" placeholder="數量">
+    <button class="rm" title="移除">×</button>`;
+  div.querySelector('.rm').addEventListener('click', ()=>{
+    if(container.querySelectorAll('.prow').length > 1) div.remove();
+  });
+  container.appendChild(div);
+}
+el('f_addRow').addEventListener('click', ()=>addProductRow('f_rows'));
+el('r_addRow').addEventListener('click', ()=>addProductRow('r_rows'));
+
+function readProductRows(containerId){
+  const rows = [...el(containerId).querySelectorAll('.prow')];
+  return rows.map(row=>{
+    const boxIdx = parseInt(row.querySelector('.prow-box').value,10);
+    const qty = parseInt(row.querySelector('.prow-qty').value,10) || 0;
+    return { box: boxes[boxIdx], qty };
+  }).filter(x=>x.box && x.qty > 0);
+}
+
+/* ---------------- TAB 2：混裝裝載確認 ---------------- */
+function updateFitCarMeta(){
+  const car = cars[parseInt(el('f_carSelect').value,10)];
+  if(!car) return;
+  el('f_carMeta').innerHTML = `車廂長 <b>${car.long_n}</b>　寬 <b>${car.wide_n}</b>　高 <b>${car.high_n}</b>　地板面積 <b>${(car.long_n*car.wide_n).toLocaleString()}</b>`;
+}
+
+let lastFitCheck = null;
+
+el('f_checkBtn').addEventListener('click', ()=>{
+  const car = cars[parseInt(el('f_carSelect').value,10)];
+  const items = readProductRows('f_rows');
+  if(items.length === 0){
+    el('f_result').innerHTML = '<div class="empty">請至少選一項產品並輸入數量。</div>';
+    lastFitCheck = null;
+    return;
+  }
+  const res = checkFit(car, items);
+  lastFitCheck = { car, res };
+  el('f_result').innerHTML = renderFitResult(res, car);
+  el('f_exportBtn').addEventListener('click', ()=>exportFitResult(lastFitCheck.car, lastFitCheck.res));
+});
+
+function renderFitResult(res, car){
+  const pct = Math.min(res.ratio*100, 999).toFixed(1);
+  const barColor = res.fits ? 'var(--teal)' : 'var(--err-fg)';
+  const rowsHtml = res.perProduct.map(p=>{
+    if(!p.possible){
+      return `<tr><td>${p.box_name_id}</td><td class="num">${p.qty}</td><td colspan="4" style="color:var(--err-fg);">${p.reason}</td></tr>`;
+    }
+    return `<tr>
+      <td>${p.box_name_id}</td>
+      <td class="num">${p.qty}</td>
+      <td class="num">${p.layers} 層/柱</td>
+      <td class="num">${p.columnsNeeded} 柱</td>
+      <td class="num">${p.areaNeeded.toFixed(0)}</td>
+      <td class="num">${p.unitQty.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="verdict ${res.fits?'fit':'nofit'}">
+      <div>
+        <div class="big">${res.fits ? '估算：放得下' : '估算：放不下'}</div>
+        <div class="sub">車廂 ${car.car_number}　地板面積需求 ${res.usedArea.toFixed(0)} ／ ${res.totalArea.toFixed(0)}（${pct}%）　／　共 ${res.totalBoxes.toLocaleString()} 箱、${res.totalUnits.toLocaleString()} pcs</div>
+      </div>
+    </div>
+    <div class="bar-track"><div class="bar-fill" style="width:${Math.min(res.ratio*100,100)}%;background:${barColor};"></div></div>
+    <table style="margin-top:16px;">
+      <thead><tr><th>產品</th><th style="text-align:right;">數量(箱)</th><th style="text-align:right;">單柱可疊</th><th style="text-align:right;">需要柱數</th><th style="text-align:right;">佔用面積</th><th style="text-align:right;">總數量(pcs)</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <div class="btn-row"><button class="btn-ghost btn-small" id="f_exportBtn">匯出此車 Excel</button></div>
+    <div class="rec-note">＊ 此為地板面積估算法：每項產品各自以最佳單一方向排列，依「單柱可堆疊層數」推算所需柱數與佔用面積，再加總與車廂地板面積比較。未進行精確二維排版最佳化，接近滿載時建議實際試裝確認。</div>
+  `;
+}
+
+function exportFitResult(car, res){
+  const detailRows = res.perProduct.map(p=>({
+    '貨車': car.car_number, '車廂長': car.long_n, '車廂寬': car.wide_n, '車廂高': car.high_n,
+    '產品': p.box_name_id, '數量(箱)': p.qty,
+    '每箱包裝數量': p.packingQty, '總數量(pcs)': p.unitQty,
+    '單柱可疊層數': p.possible ? p.layers : '', '需要柱數': p.possible ? p.columnsNeeded : '',
+    '佔用面積': p.possible ? Math.round(p.areaNeeded) : '',
+    '備註': p.possible ? '' : p.reason
+  }));
+  const summaryRows = [{
+    '貨車': car.car_number, '車廂長': car.long_n, '車廂寬': car.wide_n, '車廂高': car.high_n,
+    '地板總面積': res.totalArea, '使用面積合計': Math.round(res.usedArea),
+    '地板利用率%': (res.ratio*100).toFixed(1), '是否放得下': res.fits ? '是' : '否',
+    '總箱數': res.totalBoxes, '總數量(pcs)': res.totalUnits
+  }];
+  downloadSheets(`混裝裝載確認_${safeFilePart(car.car_number)}.xlsx`, {
+    '總覽': summaryRows,
+    '產品明細': detailRows
+  });
+}
+
+/* ---------------- TAB 3：貨車推薦 ---------------- */
+let lastRecommend = null;
+
+el('r_findBtn').addEventListener('click', ()=>{
+  const items = readProductRows('r_rows');
+  if(items.length === 0){
+    el('r_result').innerHTML = '<div class="empty">請至少選一項產品並輸入數量。</div>';
+    lastRecommend = null;
+    return;
+  }
+  const evaluated = cars.map(car => ({ car, res: checkFit(car, items) }));
+  const fitting = evaluated.filter(e => e.res.fits).sort((a,b) => b.res.ratio - a.res.ratio); // 最貼合（利用率高）者優先
+  const notFitting = evaluated.filter(e => !e.res.fits).sort((a,b) => b.res.ratio - a.res.ratio);
+  lastRecommend = { items, evaluated, shown: fitting.length ? fitting : notFitting.slice(0,3) };
+
+  let html = '';
+  if(fitting.length === 0){
+    html += `<div class="verdict nofit"><div><div class="big">沒有任何一台貨車放得下這批貨</div><div class="sub">以下列出最接近的車輛供參考</div></div></div>`;
+  }else{
+    html += `<div class="verdict fit"><div><div class="big">找到 ${fitting.length} 台可用貨車</div><div class="sub">依地板利用率由高到低排序（最貼合的排在最前面）</div></div></div>`;
+  }
+  html += `<div class="btn-row" style="margin-bottom:14px;"><button class="btn-ghost btn-small" id="r_exportAllBtn">匯出全部貨車 Excel（整列總覽）</button></div>`;
+
+  const renderCard = (e, ok, idx) => {
+    const pct = Math.min(e.res.ratio*100,999).toFixed(1);
+    const detail = e.res.perProduct.map(p=>{
+      if(!p.possible) return `<div><span>${p.box_name_id}</span><span style="color:var(--err-fg);">${p.reason}</span></div>`;
+      return `<div><span>${p.box_name_id} × ${p.qty}（${p.unitQty.toLocaleString()} pcs）</span><span>${p.columnsNeeded} 柱 / 層${p.layers}</span></div>`;
+    }).join('');
+    return `
+      <div class="car-card ${ok?'fit':'nofit'}">
+        <div class="cc-head"><b>${e.car.car_number}</b><span>${pct}% 地板利用</span></div>
+        <div class="cc-sub">${e.car.long_n} × ${e.car.wide_n} × ${e.car.high_n}　／　共 ${e.res.totalBoxes.toLocaleString()} 箱、${e.res.totalUnits.toLocaleString()} pcs</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.min(e.res.ratio*100,100)}%;background:${ok?'var(--teal)':'var(--err-fg)'};"></div></div>
+        <div class="cc-detail">${detail}</div>
+        <div class="btn-row" style="margin-top:10px;"><button class="btn-ghost btn-small export-car-btn" data-idx="${idx}">匯出此車 Excel</button></div>
+      </div>`;
+  };
+
+  lastRecommend.shown.forEach((e, idx) => html += renderCard(e, fitting.length>0, idx));
+  html += `<div class="rec-note">＊ 同樣採用地板面積估算法（詳見「混裝裝載確認」頁說明），可用貨車依地板利用率高到低排序，優先建議噸位剛好夠、不會太浪費空間的車輛。</div>`;
+
+  el('r_result').innerHTML = html;
+
+  el('r_exportAllBtn').addEventListener('click', ()=>{
+    const summaryRows = lastRecommend.evaluated.map(e=>({
+      '貨車': e.car.car_number, '車廂長': e.car.long_n, '車廂寬': e.car.wide_n, '車廂高': e.car.high_n,
+      '地板總面積': e.res.totalArea, '使用面積合計': Math.round(e.res.usedArea),
+      '地板利用率%': (e.res.ratio*100).toFixed(1), '是否放得下': e.res.fits ? '是' : '否',
+      '總箱數': e.res.totalBoxes, '總數量(pcs)': e.res.totalUnits
+    }));
+    downloadSheet('貨車推薦_全部貨車.xlsx', '貨車推薦總覽', summaryRows);
+  });
+  document.querySelectorAll('.export-car-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const e = lastRecommend.shown[parseInt(btn.dataset.idx,10)];
+      if(e) exportFitResult(e.car, e.res);
+    });
+  });
+});
+</script>
+</body>
+</html>
