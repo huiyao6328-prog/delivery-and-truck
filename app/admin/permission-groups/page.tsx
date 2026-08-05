@@ -8,6 +8,7 @@ const FUNCTIONS: { code: string; label: string }[] = [
   { code: 'employees', label: 'Employees' },
   { code: 'permissions', label: 'Permission Groups' },
   { code: 'truck_types', label: 'Truck Types' },
+  { code: 'truck_owners', label: 'Truck Owners' },
   { code: 'trucks', label: 'Trucks' },
   { code: 'dispatches', label: 'Dispatch Records' },
   { code: 'inspections', label: 'Daily Inspections' },

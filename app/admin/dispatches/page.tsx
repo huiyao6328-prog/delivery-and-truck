@@ -15,7 +15,16 @@ type Dispatch = {
   purpose: string | null
   start_mileage_km: number | null
   end_mileage_km: number | null
+  departure_time: string | null
+  return_time: string | null
+  fuel_level_on_return: string | null
+  has_issue: boolean
+  issue_note: string | null
   note: string | null
+}
+
+const FUEL_LABEL: Record<string, string> = {
+  full: 'Full', three_quarter: '3/4', half: '1/2', quarter: '1/4', empty: 'Empty',
 }
 
 type Form = {
@@ -134,7 +143,7 @@ export default function DispatchesPage() {
         ) : (
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Date</th><th>Truck</th><th>Driver</th><th>Destination</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Date</th><th>Truck</th><th>Driver</th><th>Destination</th><th>Out / Back</th><th>Status</th><th>Issue</th><th>Actions</th></tr></thead>
               <tbody>
                 {dispatches.map((d) => (
                   <tr key={d.id}>
@@ -142,7 +151,14 @@ export default function DispatchesPage() {
                     <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{truckPlate(d.truck_id)}</td>
                     <td>{driverName(d.driver_id)}</td>
                     <td style={{ color: '#93a4b6' }}>{d.destination || '—'}</td>
+                    <td style={{ fontSize: 12, color: '#93a4b6' }}>
+                      {d.departure_time ? new Date(d.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      {' / '}
+                      {d.return_time ? new Date(d.return_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      {d.fuel_level_on_return && <div style={{ marginTop: 2 }}>Fuel: {FUEL_LABEL[d.fuel_level_on_return]}</div>}
+                    </td>
                     <td><span className={`badge ${STATUS_BADGE[d.status]}`}>{STATUS_LABEL[d.status]}</span></td>
+                    <td>{d.has_issue ? <span className="badge badge-red" title={d.issue_note || ''}>Issue</span> : '—'}</td>
                     <td>
                       <div className="actions">
                         <button className="action-btn action-edit" onClick={() => openEdit(d)}>Edit</button>

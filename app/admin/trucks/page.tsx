@@ -5,10 +5,12 @@ import { supabase } from '@/lib/supabase'
 import AdminLayout from '@/components/admin/AdminLayout'
 
 type TruckType = { id: string; name: string }
+type TruckOwner = { id: string; name: string }
 type Truck = {
   id: string
   plate_no: string
   truck_type_id: string | null
+  owner_id: string | null
   length_cm: number | null
   width_cm: number | null
   height_cm: number | null
@@ -19,17 +21,18 @@ type Truck = {
 }
 
 type Form = {
-  plate_no: string; truck_type_id: string
+  plate_no: string; truck_type_id: string; owner_id: string
   length_cm: string; width_cm: string; height_cm: string; max_load_kg: string
   note: string; is_active: boolean
 }
 const emptyForm: Form = {
-  plate_no: '', truck_type_id: '', length_cm: '', width_cm: '', height_cm: '', max_load_kg: '', note: '', is_active: true,
+  plate_no: '', truck_type_id: '', owner_id: '', length_cm: '', width_cm: '', height_cm: '', max_load_kg: '', note: '', is_active: true,
 }
 
 export default function TrucksPage() {
   const [trucks, setTrucks] = useState<Truck[]>([])
   const [types, setTypes] = useState<TruckType[]>([])
+  const [owners, setOwners] = useState<TruckOwner[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<'add' | 'edit' | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
@@ -43,21 +46,27 @@ export default function TrucksPage() {
 
   async function fetchAll() {
     setLoading(true)
-    const [{ data: t }, { data: ty }] = await Promise.all([
+    const [{ data: t }, { data: ty }, { data: ow }] = await Promise.all([
       supabase.from('trucks').select('*').order('plate_no'),
       supabase.from('truck_types').select('id, name').order('name'),
+      supabase.from('truck_owners').select('id, name').eq('is_active', true).order('name'),
     ])
     setTrucks(t || [])
     setTypes(ty || [])
+    setOwners(ow || [])
     setLoading(false)
   }
 
   function typeName(id: string | null) {
     return types.find((t) => t.id === id)?.name || '—'
   }
+  function ownerName(id: string | null) {
+    return owners.find((o) => o.id === id)?.name || '—'
+  }
 
   function openAdd() {
-    setForm(emptyForm)
+    const koufu = owners.find((o) => o.name === 'Koufu')
+    setForm({ ...emptyForm, owner_id: koufu?.id || '' })
     setEditId(null)
     setModal('add')
   }
@@ -66,6 +75,7 @@ export default function TrucksPage() {
     setForm({
       plate_no: t.plate_no,
       truck_type_id: t.truck_type_id || '',
+      owner_id: t.owner_id || '',
       length_cm: t.length_cm?.toString() || '',
       width_cm: t.width_cm?.toString() || '',
       height_cm: t.height_cm?.toString() || '',
@@ -84,6 +94,7 @@ export default function TrucksPage() {
       const payload = {
         plate_no: form.plate_no.trim(),
         truck_type_id: form.truck_type_id || null,
+        owner_id: form.owner_id || null,
         length_cm: form.length_cm ? Number(form.length_cm) : null,
         width_cm: form.width_cm ? Number(form.width_cm) : null,
         height_cm: form.height_cm ? Number(form.height_cm) : null,
@@ -163,12 +174,13 @@ export default function TrucksPage() {
         ) : (
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Plate No.</th><th>Type</th><th>Box (L×W×H cm)</th><th>Max Load (kg)</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Plate No.</th><th>Type</th><th>Owner</th><th>Box (L×W×H cm)</th><th>Max Load (kg)</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {trucks.map((t) => (
                   <tr key={t.id}>
                     <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{t.plate_no}</td>
                     <td>{typeName(t.truck_type_id)}</td>
+                    <td>{t.owner_id && ownerName(t.owner_id) !== 'Koufu' ? <span className="badge badge-orange">{ownerName(t.owner_id)}</span> : <span className="badge badge-gray">Koufu</span>}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', color: '#93a4b6' }}>
                       {t.length_cm && t.width_cm && t.height_cm ? `${t.length_cm} × ${t.width_cm} × ${t.height_cm}` : '—'}
                     </td>
@@ -210,6 +222,13 @@ export default function TrucksPage() {
                     {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Owner</label>
+                <select className="form-select" value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })}>
+                  <option value="">—</option>
+                  {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Cargo Box Dimensions (cm)</label>

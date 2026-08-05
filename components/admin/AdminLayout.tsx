@@ -11,6 +11,7 @@ const navItems: { label: string; href: string; functionCode: string }[] = [
   { label: 'Employees', href: `${BASE}/employees`, functionCode: 'employees' },
   { label: 'Permission Groups', href: `${BASE}/permission-groups`, functionCode: 'permissions' },
   { label: 'Truck Types', href: `${BASE}/truck-types`, functionCode: 'truck_types' },
+  { label: 'Truck Owners', href: `${BASE}/truck-owners`, functionCode: 'truck_owners' },
   { label: 'Trucks', href: `${BASE}/trucks`, functionCode: 'trucks' },
   { label: 'Dispatch Records', href: `${BASE}/dispatches`, functionCode: 'dispatches' },
   { label: 'Daily Inspections', href: `${BASE}/inspections`, functionCode: 'inspections' },
