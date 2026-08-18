@@ -84,6 +84,17 @@ export default function HomePage() {
           <div style={styles.arrow}>→</div>
         </Link>
 
+        <Link href="/improvement" style={styles.settingsCard}>
+          <div style={{ ...styles.cardIconWrap, background: 'rgba(255,255,255,0.08)' }}>
+            <WrenchIcon />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={styles.primaryCardTitle}>Improvement Progress</div>
+            <div style={styles.primaryCardSub}>Track defects found during inspections through to fix &amp; sign-off</div>
+          </div>
+          <div style={styles.arrow}>→</div>
+        </Link>
+
         {hasAnyBackOfficeAccess(session) && (
           <Link href="/admin" style={styles.settingsCard}>
             <div style={{ ...styles.cardIconWrap, background: 'rgba(255,255,255,0.08)' }}>
@@ -139,6 +150,14 @@ function TruckIcon() {
       <path d="M16 8h4l3 3v5h-7V8z" />
       <circle cx="5.5" cy="18.5" r="2.5" />
       <circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  )
+}
+
+function WrenchIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.7 6.3a4 4 0 0 0-5.6 4.9L2 18.3 5.7 22l7.1-7.1a4 4 0 0 0 4.9-5.6l-2.5 2.5-2.6-2.6z" />
     </svg>
   )
 }

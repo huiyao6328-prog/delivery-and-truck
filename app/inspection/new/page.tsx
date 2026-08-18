@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
 
@@ -8,7 +9,7 @@ type Truck = { id: string; plate_no: string }
 type Category = { id: string; sort_order: number; name: string; description: string | null }
 type Item = { id: string; category_id: string; sort_order: number; label: string; hint: string | null; truck_id: string | null }
 type Status = 'ok' | 'issue' | 'na'
-type Answer = { status: Status; note: string }
+type Answer = { status: Status; note: string; photoUrl?: string; uploadingPhoto?: boolean }
 
 export default function NewInspectionPage() {
   const router = useRouter()
@@ -82,6 +83,19 @@ export default function NewInspectionPage() {
     setAnswers((prev) => ({ ...prev, [itemId]: { status: prev[itemId]?.status || 'issue', note } }))
   }
 
+  async function uploadPhoto(itemId: string, file: File) {
+    setAnswers((prev) => ({ ...prev, [itemId]: { status: prev[itemId]?.status || 'issue', note: prev[itemId]?.note || '', uploadingPhoto: true } }))
+    const ext = file.name.split('.').pop() || 'jpg'
+    const path = `${itemId}-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('inspection-photos').upload(path, file)
+    if (error) {
+      setAnswers((prev) => ({ ...prev, [itemId]: { ...prev[itemId], uploadingPhoto: false } }))
+      return
+    }
+    const { data } = supabase.storage.from('inspection-photos').getPublicUrl(path)
+    setAnswers((prev) => ({ ...prev, [itemId]: { ...prev[itemId], photoUrl: data.publicUrl, uploadingPhoto: false } }))
+  }
+
   function categoryProgress(categoryId: string) {
     const catItems = itemsByCategory[categoryId] || []
     const checked = catItems.filter((it) => answers[it.id]).length
@@ -126,11 +140,19 @@ export default function NewInspectionPage() {
         category_snapshot: categoryById[it.category_id] || '',
         status: answers[it.id].status,
         note: answers[it.id].note || null,
+        photo_url: answers[it.id].photoUrl || null,
       }))
-      const { error: resErr } = await supabase.from('inspection_results').insert(resultRows)
+      const { data: insertedResults, error: resErr } = await supabase.from('inspection_results').insert(resultRows).select('id, status')
       if (resErr) {
         setError(resErr.message)
         return
+      }
+
+      const issueRows = (insertedResults || [])
+        .filter((r) => r.status === 'issue')
+        .map((r) => ({ inspection_result_id: r.id, truck_id: truckId }))
+      if (issueRows.length) {
+        await supabase.from('improvement_actions').insert(issueRows)
       }
 
       router.push(`/inspection/${inspection.id}`)
@@ -147,7 +169,10 @@ export default function NewInspectionPage() {
     <div className="ins-app">
       <header className="ins-header">
         <div className="ins-header-top">
-          <div className="ins-brand"><b>Delivery&nbsp;&amp;&nbsp;Truck</b> · Daily Inspection</div>
+          <div className="ins-header-left">
+            <Link href="/" className="ins-home-btn" aria-label="Back to home">←&nbsp;Home</Link>
+            <div className="ins-brand"><b>Delivery&nbsp;&amp;&nbsp;Truck</b> · Daily Inspection</div>
+          </div>
           <div className="ins-doc-label">FORM DVI-01</div>
         </div>
         <div className="ins-header-fields">
@@ -220,6 +245,23 @@ export default function NewInspectionPage() {
                               value={answer.note}
                               onChange={(e) => setNote(item.id, e.target.value)}
                             />
+                            <div className="ins-photo-row">
+                              {answer.photoUrl ? (
+                                <img src={answer.photoUrl} alt="" className="ins-photo-thumb" />
+                              ) : (
+                                <label className="ins-photo-btn">
+                                  {answer.uploadingPhoto ? 'Uploading…' : '📷 Add Photo'}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    hidden
+                                    disabled={answer.uploadingPhoto}
+                                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(item.id, f) }}
+                                  />
+                                </label>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -257,7 +299,10 @@ export default function NewInspectionPage() {
       <style jsx>{`
         .ins-app { max-width: 560px; margin: 0 auto; min-height: 100vh; background: #0f1b28; display: flex; flex-direction: column; font-size: 14px; }
         .ins-header { position: sticky; top: 0; z-index: 20; background: #16232f; border-bottom: 1px solid #26374a; }
-        .ins-header-top { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 16px 2px; }
+        .ins-header-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 2px; }
+        .ins-header-left { display: flex; align-items: center; gap: 10px; }
+        .ins-home-btn { flex-shrink: 0; font-size: 12px; font-weight: 700; color: #93a4b6; text-decoration: none; border: 1px solid #28394a; border-radius: 7px; padding: 5px 9px; }
+        .ins-home-btn:hover { color: #e9eef3; border-color: #3a4f65; }
         .ins-brand { font-size: 13px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #93a4b6; }
         .ins-brand b { color: #e37a42; }
         .ins-doc-label { font-size: 11px; color: #64798d; font-family: var(--font-mono); }
@@ -308,6 +353,9 @@ export default function NewInspectionPage() {
         .ins-segmented button.sel-na { background: #ece9df; color: #6b6252; }
         .ins-issue-panel { margin-top: 10px; padding: 10px; background: #34201a; border: 1px solid #5a3226; border-radius: 8px; }
         .ins-issue-panel textarea { width: 100%; min-height: 50px; resize: vertical; border: 1px solid #5a3226; border-radius: 6px; background: #16232f; color: #e9eef3; font-family: inherit; font-size: 13px; padding: 8px; }
+        .ins-photo-row { margin-top: 8px; }
+        .ins-photo-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: #ffb6c1; border: 1px dashed #6b3652; border-radius: 7px; padding: 7px 11px; cursor: pointer; }
+        .ins-photo-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 7px; border: 1px solid #5a3226; }
         .ins-footer { position: sticky; bottom: 0; background: #16232f; border-top: 1px solid #26374a; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); }
         .ins-footer-status { text-align: center; font-size: 12px; font-weight: 700; color: #64798d; margin-bottom: 8px; }
         .ins-footer-status.has-issue { color: #f2977e; }
