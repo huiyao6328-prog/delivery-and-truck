@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import AdminLayout from '@/components/admin/AdminLayout'
@@ -41,6 +41,8 @@ export default function TrucksPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<'plate_no' | 'type' | 'owner' | 'length_cm' | 'max_load_kg' | 'source' | 'is_active'>('plate_no')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => { fetchAll() }, [])
 
@@ -62,6 +64,48 @@ export default function TrucksPage() {
   }
   function ownerName(id: string | null) {
     return owners.find((o) => o.id === id)?.name || '—'
+  }
+
+  function toggleSort(key: typeof sortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  const sortedTrucks = useMemo(() => {
+    const withValue = (t: Truck) => {
+      switch (sortKey) {
+        case 'plate_no': return t.plate_no.toLowerCase()
+        case 'type': return typeName(t.truck_type_id).toLowerCase()
+        case 'owner': return ownerName(t.owner_id).toLowerCase()
+        case 'length_cm': return t.length_cm ?? -1
+        case 'max_load_kg': return t.max_load_kg ?? -1
+        case 'source': return t.kf_erp_synced_at ? 'kf-erp' : 'local'
+        case 'is_active': return t.is_active ? 1 : 0
+      }
+    }
+    const sorted = [...trucks].sort((a, b) => {
+      const va = withValue(a)
+      const vb = withValue(b)
+      if (va < vb) return -1
+      if (va > vb) return 1
+      return 0
+    })
+    if (sortDir === 'desc') sorted.reverse()
+    return sorted
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trucks, types, owners, sortKey, sortDir])
+
+  function SortHeader({ label, sortKeyName }: { label: string; sortKeyName: typeof sortKey }) {
+    const active = sortKey === sortKeyName
+    return (
+      <th onClick={() => toggleSort(sortKeyName)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+        {label}{active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+      </th>
+    )
   }
 
   function openAdd() {
@@ -174,9 +218,20 @@ export default function TrucksPage() {
         ) : (
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Plate No.</th><th>Type</th><th>Owner</th><th>Box (L×W×H cm)</th><th>Max Load (kg)</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead>
+                <tr>
+                  <SortHeader label="Plate No." sortKeyName="plate_no" />
+                  <SortHeader label="Type" sortKeyName="type" />
+                  <SortHeader label="Owner" sortKeyName="owner" />
+                  <SortHeader label="Box (L×W×H cm)" sortKeyName="length_cm" />
+                  <SortHeader label="Max Load (kg)" sortKeyName="max_load_kg" />
+                  <SortHeader label="Source" sortKeyName="source" />
+                  <SortHeader label="Status" sortKeyName="is_active" />
+                  <th>Actions</th>
+                </tr>
+              </thead>
               <tbody>
-                {trucks.map((t) => (
+                {sortedTrucks.map((t) => (
                   <tr key={t.id}>
                     <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{t.plate_no}</td>
                     <td>{typeName(t.truck_type_id)}</td>

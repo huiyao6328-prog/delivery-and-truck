@@ -20,6 +20,7 @@ export default function HomePage() {
   const [inspections, setInspections] = useState<Inspection[]>([])
   const [trucks, setTrucks] = useState<Truck[]>([])
   const [loadingList, setLoadingList] = useState(true)
+  const [openIssueCount, setOpenIssueCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (session) fetchRecent()
@@ -28,13 +29,15 @@ export default function HomePage() {
 
   async function fetchRecent() {
     if (!session) return
-    const [{ data: insp }, { data: t }] = await Promise.all([
+    const [{ data: insp }, { data: t }, { count }] = await Promise.all([
       supabase.from('inspections').select('id, truck_id, inspection_date, overall_result, submitted_at')
         .eq('driver_id', session.employee.id).order('inspection_date', { ascending: false }).limit(10),
       supabase.from('trucks').select('id, plate_no'),
+      supabase.from('improvement_actions').select('id', { count: 'exact', head: true }).neq('status', 'closed'),
     ])
     setInspections(insp || [])
     setTrucks(t || [])
+    setOpenIssueCount(count ?? null)
     setLoadingList(false)
   }
 
@@ -89,7 +92,10 @@ export default function HomePage() {
             <WrenchIcon />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={styles.primaryCardTitle}>Improvement Progress</div>
+            <div style={styles.primaryCardTitle}>
+              Improvement Progress
+              {!!openIssueCount && <span style={styles.openCountBadge}>{openIssueCount} open</span>}
+            </div>
             <div style={styles.primaryCardSub}>Track defects found during inspections through to fix &amp; sign-off</div>
           </div>
           <div style={styles.arrow}>→</div>
@@ -198,7 +204,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(232,112,58,0.18)', color: '#e37a42',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  primaryCardTitle: { fontSize: 17, fontWeight: 700 },
+  primaryCardTitle: { fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 },
+  openCountBadge: { fontSize: 11.5, fontWeight: 700, padding: '2px 9px', borderRadius: 100, background: '#f8e2da', color: '#9c3719' },
   primaryCardSub: { fontSize: 12.5, color: '#93a4b6', marginTop: 4, maxWidth: 280 },
   arrow: { fontSize: 22, color: '#ec7f43', flexShrink: 0 },
   sectionTitle: { fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#64798d', marginBottom: 10 },

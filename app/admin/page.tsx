@@ -10,6 +10,7 @@ export default function DashboardPage() {
   const [driverItems, setDriverItems] = useState<ListItem[]>([])
   const [dispatchItems, setDispatchItems] = useState<ListItem[]>([])
   const [issueItems, setIssueItems] = useState<ListItem[]>([])
+  const [koufuDefectItems, setKoufuDefectItems] = useState<ListItem[]>([])
   const [inspectionsToday, setInspectionsToday] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -19,12 +20,13 @@ export default function DashboardPage() {
 
   async function fetchStats() {
     const today = new Date().toISOString().slice(0, 10)
-    const [truckTypesRes, trucksRes, inspectionsRes, dispatchesRes, employeesRes] = await Promise.all([
+    const [truckTypesRes, trucksRes, inspectionsRes, dispatchesRes, employeesRes, ownersRes] = await Promise.all([
       supabase.from('truck_types').select('id, name'),
-      supabase.from('trucks').select('id, plate_no, truck_type_id'),
+      supabase.from('trucks').select('id, plate_no, truck_type_id, owner_id'),
       supabase.from('inspections').select('id, truck_id, driver_id, overall_result').eq('inspection_date', today),
       supabase.from('dispatches').select('id, truck_id, driver_id, destination, purpose').eq('dispatch_date', today),
       supabase.from('employees').select('id, full_name'),
+      supabase.from('truck_owners').select('id, name'),
     ])
 
     const truckTypeName = (id: string | null) => truckTypesRes.data?.find((t) => t.id === id)?.name
@@ -70,6 +72,42 @@ export default function DashboardPage() {
     )
 
     setInspectionsToday(inspections.length)
+
+    // Koufu Trucks — Open Defects
+    const koufuOwnerId = ownersRes.data?.find((o) => o.name === 'Koufu')?.id
+    const koufuTrucks = (trucksRes.data || []).filter((t) => t.owner_id === koufuOwnerId)
+    if (koufuOwnerId && koufuTrucks.length) {
+      const koufuTruckIds = koufuTrucks.map((t) => t.id)
+      const { data: openActions } = await supabase
+        .from('improvement_actions')
+        .select('id, truck_id, inspection_result_id')
+        .in('truck_id', koufuTruckIds)
+        .neq('status', 'closed')
+      const resultIds = (openActions || []).map((a) => a.inspection_result_id)
+      const { data: results } = resultIds.length
+        ? await supabase.from('inspection_results').select('id, label_snapshot').in('id', resultIds)
+        : { data: [] }
+      const labelById = Object.fromEntries((results || []).map((r) => [r.id, r.label_snapshot]))
+
+      const byTruck: Record<string, string[]> = {}
+      ;(openActions || []).forEach((a) => {
+        byTruck[a.truck_id] = byTruck[a.truck_id] || []
+        byTruck[a.truck_id].push(labelById[a.inspection_result_id] || 'Unspecified issue')
+      })
+      setKoufuDefectItems(
+        koufuTrucks
+          .filter((t) => byTruck[t.id]?.length)
+          .map((t) => ({
+            key: t.id,
+            primary: t.plate_no,
+            secondary: byTruck[t.id].join(', '),
+            badge: { text: `${byTruck[t.id].length} open`, className: 'badge-red' },
+          }))
+      )
+    } else {
+      setKoufuDefectItems([])
+    }
+
     setLoading(false)
   }
 
@@ -89,6 +127,7 @@ export default function DashboardPage() {
           <ListCard title="Active Drivers" subtitle="Checked or dispatched today" items={driverItems} emptyText="No driver activity yet today." />
           <ListCard title="Dispatches Today" subtitle="Trucks sent out" items={dispatchItems} emptyText="No dispatches recorded today." />
           <ListCard title="Issues Flagged" subtitle="Trucks with a problem today" items={issueItems} emptyText="No issues flagged today." />
+          <ListCard title="Koufu Trucks — Open Defects" subtitle="Unresolved issues by plate no." items={koufuDefectItems} emptyText="No open defects on Koufu-owned trucks." />
           <div className="stat-card">
             <div className="stat-label">Inspections Today</div>
             <div className="stat-value">{inspectionsToday}</div>
