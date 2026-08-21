@@ -7,7 +7,10 @@ import { useSession } from '@/lib/useSession'
 
 type Truck = { id: string; plate_no: string }
 type Category = { id: string; sort_order: number; name: string; description: string | null }
-type Item = { id: string; category_id: string; sort_order: number; label: string; hint: string | null; truck_id: string | null }
+type Item = {
+  id: string; category_id: string; sort_order: number; label: string; hint: string | null; truck_id: string | null
+  default_severity: 'critical' | 'moderate' | 'minor' | null
+}
 type Status = 'ok' | 'issue' | 'na'
 type Answer = { status: Status; note: string; photoUrl?: string; uploadingPhoto?: boolean }
 
@@ -122,7 +125,7 @@ export default function NewInspectionPage() {
           overall_result: overallResult,
           submitted_at: new Date().toISOString(),
         }])
-        .select('id')
+        .select('id, inspection_date')
         .single()
 
       if (insErr || !inspection) {
@@ -142,15 +145,23 @@ export default function NewInspectionPage() {
         note: answers[it.id].note || null,
         photo_url: answers[it.id].photoUrl || null,
       }))
-      const { data: insertedResults, error: resErr } = await supabase.from('inspection_results').insert(resultRows).select('id, status')
+      const { data: insertedResults, error: resErr } = await supabase.from('inspection_results').insert(resultRows).select('id, item_id, status')
       if (resErr) {
         setError(resErr.message)
         return
       }
 
+      const severityByItemId: Record<string, Item['default_severity']> = {}
+      items.forEach((it) => { severityByItemId[it.id] = it.default_severity })
+
       const issueRows = (insertedResults || [])
         .filter((r) => r.status === 'issue')
-        .map((r) => ({ inspection_result_id: r.id, truck_id: truckId }))
+        .map((r) => ({
+          inspection_result_id: r.id,
+          truck_id: truckId,
+          inspection_date: inspection.inspection_date,
+          severity: (r.item_id && severityByItemId[r.item_id]) || null,
+        }))
       if (issueRows.length) {
         await supabase.from('improvement_actions').insert(issueRows)
       }

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import AdminLayout from '@/components/admin/AdminLayout'
 
-type TruckOwner = { id: string; name: string; is_active: boolean }
+type TruckOwner = { id: string; name: string; is_active: boolean; is_default: boolean }
 
 export default function TruckOwnersPage() {
   const [owners, setOwners] = useState<TruckOwner[]>([])
@@ -12,6 +12,7 @@ export default function TruckOwnersPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [isActive, setIsActive] = useState(true)
+  const [isDefault, setIsDefault] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -29,6 +30,7 @@ export default function TruckOwnersPage() {
   function openAdd() {
     setName('')
     setIsActive(true)
+    setIsDefault(false)
     setEditId(null)
     setError('')
     setModal('add')
@@ -36,6 +38,7 @@ export default function TruckOwnersPage() {
   function openEdit(o: TruckOwner) {
     setName(o.name)
     setIsActive(o.is_active)
+    setIsDefault(o.is_default)
     setEditId(o.id)
     setError('')
     setModal('edit')
@@ -46,7 +49,7 @@ export default function TruckOwnersPage() {
     setSaving(true)
     setError('')
     try {
-      const payload = { name: name.trim(), is_active: isActive }
+      const payload = { name: name.trim(), is_active: isActive, is_default: isDefault }
       const result = modal === 'add'
         ? await supabase.from('truck_owners').insert([payload])
         : await supabase.from('truck_owners').update(payload).eq('id', editId)
@@ -90,12 +93,13 @@ export default function TruckOwnersPage() {
         ) : (
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Name</th><th>Status</th><th>Default Fleet</th><th>Actions</th></tr></thead>
               <tbody>
                 {owners.map((o) => (
                   <tr key={o.id}>
                     <td style={{ fontWeight: 600 }}>{o.name}</td>
                     <td>{o.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</td>
+                    <td>{o.is_default ? <span className="badge badge-orange">Default</span> : '—'}</td>
                     <td>
                       <div className="actions">
                         <button className="action-btn action-edit" onClick={() => openEdit(o)}>Edit</button>
@@ -126,6 +130,12 @@ export default function TruckOwnersPage() {
                 <label className="form-label">
                   <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} style={{ marginRight: 8 }} />
                   Active
+                </label>
+              </div>
+              <div className="form-group">
+                <label className="form-label">
+                  <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} style={{ marginRight: 8 }} />
+                  Part of default fleet (shown on Dashboard)
                 </label>
               </div>
               {error && <div style={{ color: '#f2977e', fontSize: 13, marginBottom: 8 }}>{error}</div>}

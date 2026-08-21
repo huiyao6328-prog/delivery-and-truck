@@ -11,6 +11,7 @@ type Action = {
   status: 'pending' | 'in_progress' | 'pending_review' | 'closed'
   severity: 'critical' | 'moderate' | 'minor' | null
   assigned_to: string | null
+  repair_vendor_type: 'truck_owner' | 'repair_shop' | null
   repair_vendor: string | null
   deadline: string | null
   approving_manager_id: string | null
@@ -93,6 +94,7 @@ export default function ImprovementDetailPage({ params }: { params: Promise<{ id
     await supabase.from('improvement_actions').update({
       severity: action.severity,
       assigned_to: action.assigned_to,
+      repair_vendor_type: action.repair_vendor_type,
       repair_vendor: action.repair_vendor,
       deadline: action.deadline,
       approving_manager_id: action.approving_manager_id,
@@ -201,7 +203,24 @@ export default function ImprovementDetailPage({ params }: { params: Promise<{ id
           </div>
           <div className="ip-field">
             <label>Repair</label>
-            <input type="text" value={action.repair_vendor || ''} placeholder="Repair shop / vendor" onChange={(e) => update('repair_vendor', e.target.value)} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select
+                style={{ flex: '0 0 150px' }}
+                value={action.repair_vendor_type || ''}
+                onChange={(e) => update('repair_vendor_type', (e.target.value || null) as Action['repair_vendor_type'])}
+              >
+                <option value="">—</option>
+                <option value="truck_owner">Truck Owner</option>
+                <option value="repair_shop">Repair Shop</option>
+              </select>
+              <input
+                type="text"
+                style={{ flex: 1 }}
+                value={action.repair_vendor || ''}
+                placeholder="Name / detail"
+                onChange={(e) => update('repair_vendor', e.target.value)}
+              />
+            </div>
           </div>
           <div className="ip-field">
             <label>Deadline</label>

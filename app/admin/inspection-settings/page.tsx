@@ -5,11 +5,16 @@ import AdminLayout from '@/components/admin/AdminLayout'
 import { useSession } from '@/lib/useSession'
 
 type Category = { id: string; sort_order: number; name: string; description: string | null; is_active: boolean }
+type Severity = 'critical' | 'moderate' | 'minor'
 type Item = {
   id: string; category_id: string; sort_order: number; label: string; hint: string | null; is_active: boolean
-  updated_by: string | null; updated_at: string | null
+  updated_by: string | null; updated_at: string | null; default_severity: Severity | null
 }
 type Employee = { id: string; full_name: string }
+type AiReview = { id: string; run_at: string; triggered_by: 'manual' | 'cron'; summary: string }
+
+const SEVERITY_LABEL: Record<Severity, string> = { critical: 'Critical', moderate: 'Moderate', minor: 'Minor' }
+const SEVERITY_BADGE: Record<Severity, string> = { critical: 'badge-red', moderate: 'badge-orange', minor: 'badge-gray' }
 
 export default function InspectionSettingsPage() {
   const { session } = useSession()
@@ -28,11 +33,45 @@ export default function InspectionSettingsPage() {
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null)
 
   const [itemModal, setItemModal] = useState<'add' | 'edit' | null>(null)
-  const [itemForm, setItemForm] = useState({ sort_order: '0', label: '', hint: '' })
+  const [itemForm, setItemForm] = useState({ sort_order: '0', label: '', hint: '', default_severity: '' as Severity | '' })
   const [itemEditId, setItemEditId] = useState<string | null>(null)
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestError, setSuggestError] = useState('')
 
-  useEffect(() => { fetchCategories() }, [])
+  const [reviews, setReviews] = useState<AiReview[]>([])
+  const [loadingReviews, setLoadingReviews] = useState(true)
+  const [runningReview, setRunningReview] = useState(false)
+  const [reviewError, setReviewError] = useState('')
+  const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null)
+
+  useEffect(() => { fetchCategories(); fetchReviews() }, [])
+
+  async function fetchReviews() {
+    setLoadingReviews(true)
+    const { data } = await supabase.from('inspection_ai_reviews').select('id, run_at, triggered_by, summary').order('run_at', { ascending: false }).limit(12)
+    setReviews(data || [])
+    setLoadingReviews(false)
+  }
+
+  async function runReviewNow() {
+    setRunningReview(true)
+    setReviewError('')
+    try {
+      const res = await fetch('/api/ai/monthly-review', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setReviewError(data.error || 'Review failed')
+        return
+      }
+      setExpandedReviewId(data.review.id)
+      fetchReviews()
+    } catch {
+      setReviewError('Could not reach the review service')
+    } finally {
+      setRunningReview(false)
+    }
+  }
 
   async function fetchCategories() {
     setLoading(true)
@@ -90,15 +129,39 @@ export default function InspectionSettingsPage() {
 
   function openAddItem() {
     const nextOrder = items.length ? Math.max(...items.map((i) => i.sort_order)) + 1 : 1
-    setItemForm({ sort_order: String(nextOrder), label: '', hint: '' })
+    setItemForm({ sort_order: String(nextOrder), label: '', hint: '', default_severity: '' })
     setItemEditId(null)
+    setSuggestError('')
     setItemModal('add')
   }
   function openEditItem(i: Item) {
-    setItemForm({ sort_order: String(i.sort_order), label: i.label, hint: i.hint || '' })
+    setItemForm({ sort_order: String(i.sort_order), label: i.label, hint: i.hint || '', default_severity: i.default_severity || '' })
     setItemEditId(i.id)
     setError('')
+    setSuggestError('')
     setItemModal('edit')
+  }
+  async function suggestSeverity() {
+    if (!itemForm.label.trim()) return
+    setSuggesting(true)
+    setSuggestError('')
+    try {
+      const res = await fetch('/api/ai/classify-severity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: itemForm.label.trim(), hint: itemForm.hint.trim(), category: selected?.name }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSuggestError(data.error || 'AI suggestion failed')
+        return
+      }
+      setItemForm((f) => ({ ...f, default_severity: data.severity }))
+    } catch {
+      setSuggestError('Could not reach the AI suggestion service')
+    } finally {
+      setSuggesting(false)
+    }
   }
   async function saveItem() {
     if (!selected || !itemForm.label.trim()) return
@@ -109,6 +172,7 @@ export default function InspectionSettingsPage() {
       sort_order: Number(itemForm.sort_order) || 0,
       label: itemForm.label.trim(),
       hint: itemForm.hint.trim() || null,
+      default_severity: itemForm.default_severity || null,
       updated_by: session?.employee.id || null,
       updated_at: new Date().toISOString(),
     }
@@ -167,6 +231,57 @@ export default function InspectionSettingsPage() {
               </div>
             )}
           </div>
+
+          <div className="page-header" style={{ marginTop: 32 }}>
+            <div>
+              <div className="page-title" style={{ fontSize: 17 }}>AI Review Log</div>
+              <div className="page-sub">Gemini re-checks item severity and each truck&apos;s checklist for drift · runs automatically on the 1st of every month, or on demand below</div>
+            </div>
+            <button className="btn btn-secondary" onClick={runReviewNow} disabled={runningReview}>
+              {runningReview ? 'Running…' : '▶ Run AI Review Now'}
+            </button>
+          </div>
+          {reviewError && (
+            <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 8, fontSize: 13, background: '#34201a', color: '#f2977e', border: '1px solid #4a2e25' }}>
+              {reviewError}
+            </div>
+          )}
+          <div className="card">
+            {loadingReviews ? (
+              <div className="loading"><div className="spinner" /><span>Loading…</span></div>
+            ) : reviews.length === 0 ? (
+              <div className="empty-state">No AI reviews have run yet.</div>
+            ) : (
+              <div>
+                {reviews.map((r) => {
+                  const expanded = expandedReviewId === r.id
+                  return (
+                    <div key={r.id} style={{ borderBottom: '1px solid #1e2c3a' }}>
+                      <button
+                        onClick={() => setExpandedReviewId(expanded ? null : r.id)}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                          padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 13.5, color: '#e9eef3', fontWeight: 600 }}>{new Date(r.run_at).toLocaleString()}</span>
+                          <span className={`badge ${r.triggered_by === 'cron' ? 'badge-blue' : 'badge-gray'}`}>{r.triggered_by === 'cron' ? 'Monthly Auto' : 'Manual'}</span>
+                        </div>
+                        <span style={{ color: '#64798d', fontSize: 12 }}>{expanded ? '▲ Hide' : '▼ View'}</span>
+                      </button>
+                      {expanded && (
+                        <pre style={{
+                          margin: 0, padding: '0 16px 16px', fontSize: 12.5, color: '#cdd8e3', whiteSpace: 'pre-wrap',
+                          fontFamily: 'inherit', lineHeight: 1.6,
+                        }}>{r.summary}</pre>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -198,13 +313,14 @@ export default function InspectionSettingsPage() {
             ) : (
               <div className="table-wrap">
                 <table className="data-table">
-                  <thead><tr><th>#</th><th>Item</th><th>Hint</th><th>Last Modified</th><th>Status</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>#</th><th>Item</th><th>Hint</th><th>Default Severity</th><th>Last Modified</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody>
                     {items.map((i) => (
                       <tr key={i.id}>
                         <td style={{ fontFamily: 'var(--font-mono)' }}>{i.sort_order}</td>
                         <td style={{ fontWeight: 600 }}>{i.label}</td>
                         <td style={{ color: '#93a4b6', fontSize: 13 }}>{i.hint || '—'}</td>
+                        <td>{i.default_severity ? <span className={`badge ${SEVERITY_BADGE[i.default_severity]}`}>{SEVERITY_LABEL[i.default_severity]}</span> : '—'}</td>
                         <td style={{ color: '#64798d', fontSize: 12 }}>
                           {i.updated_by ? `${employeeName(i.updated_by) || 'Unknown'} · ${new Date(i.updated_at!).toLocaleDateString()}` : '—'}
                         </td>
@@ -294,6 +410,35 @@ export default function InspectionSettingsPage() {
               <div className="form-group">
                 <label className="form-label">Hint (shown under the label)</label>
                 <input className="form-input" value={itemForm.hint} onChange={(e) => setItemForm({ ...itemForm, hint: e.target.value })} placeholder="e.g. Dipstick between Min–Max" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Default Severity</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select
+                    className="form-select"
+                    style={{ flex: 1 }}
+                    value={itemForm.default_severity}
+                    onChange={(e) => setItemForm({ ...itemForm, default_severity: e.target.value as Severity | '' })}
+                  >
+                    <option value="">—</option>
+                    <option value="critical">Critical</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="minor">Minor</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ flexShrink: 0 }}
+                    onClick={suggestSeverity}
+                    disabled={suggesting || !itemForm.label.trim()}
+                  >
+                    {suggesting ? 'Asking AI…' : '✨ AI Suggest'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: '#64798d', marginTop: 4 }}>
+                  Seeds the severity when this item is flagged as an issue — still adjustable per case in Improvement Progress.
+                </div>
+                {suggestError && <div style={{ color: '#f2977e', fontSize: 12.5, marginTop: 4 }}>{suggestError}</div>}
               </div>
               {error && <div style={{ color: '#f2977e', fontSize: 13, marginBottom: 8 }}>{error}</div>}
               <div className="modal-footer">

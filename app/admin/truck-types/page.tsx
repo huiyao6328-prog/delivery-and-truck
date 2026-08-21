@@ -78,10 +78,10 @@ export default function TruckTypesPage() {
     <AdminLayout>
       <div className="page-header">
         <div>
-          <div className="page-title">Truck Types</div>
+          <div className="page-title">Vehicle Type</div>
           <div className="page-sub">{types.length} type(s)</div>
         </div>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Truck Type</button>
+        <button className="btn btn-primary" onClick={openAdd}>+ Add Vehicle Type</button>
       </div>
 
       <div className="card">
@@ -118,7 +118,7 @@ export default function TruckTypesPage() {
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 460 }}>
             <div className="modal-header">
-              <div className="modal-title">{modal === 'add' ? 'Add Truck Type' : 'Edit Truck Type'}</div>
+              <div className="modal-title">{modal === 'add' ? 'Add Vehicle Type' : 'Edit Vehicle Type'}</div>
               <button className="modal-close" onClick={() => setModal(null)}>×</button>
             </div>
             <div className="modal-body">
@@ -152,7 +152,7 @@ export default function TruckTypesPage() {
       {deleteId && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 380 }}>
-            <div className="modal-header"><div className="modal-title">Delete Truck Type</div></div>
+            <div className="modal-header"><div className="modal-title">Delete Vehicle Type</div></div>
             <div className="modal-body">
               <p style={{ color: '#93a4b6', fontSize: 14 }}>This can&apos;t be undone. Delete this truck type?</p>
               <div className="modal-footer">

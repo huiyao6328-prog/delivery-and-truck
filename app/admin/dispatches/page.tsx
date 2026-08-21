@@ -9,6 +9,7 @@ type Dispatch = {
   id: string
   truck_id: string
   driver_id: string | null
+  helper_id: string | null
   dispatch_date: string
   status: string
   destination: string | null
@@ -17,6 +18,9 @@ type Dispatch = {
   end_mileage_km: number | null
   departure_time: string | null
   return_time: string | null
+  scheduled_departure_time: string | null
+  scheduled_arrival_time: string | null
+  delay_reason: string | null
   fuel_level_on_return: string | null
   has_issue: boolean
   issue_note: string | null
@@ -26,16 +30,29 @@ type Dispatch = {
 const FUEL_LABEL: Record<string, string> = {
   full: 'Full', three_quarter: '3/4', half: '1/2', quarter: '1/4', empty: 'Empty',
 }
+const DELAY_REASON_LABEL: Record<string, string> = {
+  customer_change: 'Customer changed time', weather: 'Weather', road_closure: 'Road closure',
+  production_delay: 'Production delay', traffic: 'Traffic', other: 'Other',
+}
 
 type Form = {
-  truck_id: string; driver_id: string; dispatch_date: string; status: string
+  truck_id: string; driver_id: string; helper_id: string; dispatch_date: string; status: string
   destination: string; purpose: string; start_mileage_km: string; end_mileage_km: string; note: string
+  scheduled_departure_time: string; scheduled_arrival_time: string
 }
 const today = () => new Date().toISOString().slice(0, 10)
 const emptyForm = (): Form => ({
-  truck_id: '', driver_id: '', dispatch_date: today(), status: 'pending',
+  truck_id: '', driver_id: '', helper_id: '', dispatch_date: today(), status: 'pending',
   destination: '', purpose: '', start_mileage_km: '', end_mileage_km: '', note: '',
+  scheduled_departure_time: '', scheduled_arrival_time: '',
 })
+
+function toLocalInput(iso: string | null) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled',
@@ -48,6 +65,7 @@ export default function DispatchesPage() {
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [trucks, setTrucks] = useState<Truck[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
+  const [helpers, setHelpers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<'add' | 'edit' | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
@@ -59,19 +77,31 @@ export default function DispatchesPage() {
 
   async function fetchAll() {
     setLoading(true)
-    const [{ data: d }, { data: t }, { data: e }] = await Promise.all([
+    const [{ data: d }, { data: t }, { data: e }, { data: h }] = await Promise.all([
       supabase.from('dispatches').select('*').order('dispatch_date', { ascending: false }).limit(200),
       supabase.from('trucks').select('id, plate_no').eq('is_active', true).order('plate_no'),
       supabase.from('employees').select('id, full_name').eq('is_driver', true).eq('is_active', true).order('full_name'),
+      supabase.from('employees').select('id, full_name').eq('is_active', true).order('full_name'),
     ])
     setDispatches(d || [])
     setTrucks(t || [])
     setDrivers(e || [])
+    setHelpers(h || [])
     setLoading(false)
   }
 
   function truckPlate(id: string) { return trucks.find((t) => t.id === id)?.plate_no || '—' }
   function driverName(id: string | null) { return drivers.find((d) => d.id === id)?.full_name || '—' }
+  function helperName(id: string | null) { return id ? helpers.find((h) => h.id === id)?.full_name || '—' : '—' }
+
+  const EXCUSED_REASONS = new Set(['customer_change', 'weather', 'road_closure', 'production_delay'])
+  function onTimeStatus(d: Dispatch) {
+    if (!d.scheduled_departure_time || !d.departure_time) return null
+    const lateMin = Math.round((new Date(d.departure_time).getTime() - new Date(d.scheduled_departure_time).getTime()) / 60000)
+    if (lateMin <= 15) return { label: 'On Time', tone: 'badge-green' }
+    if (d.delay_reason && EXCUSED_REASONS.has(d.delay_reason)) return { label: `Excused (${DELAY_REASON_LABEL[d.delay_reason]})`, tone: 'badge-gray' }
+    return { label: `${lateMin}m late`, tone: 'badge-red' }
+  }
 
   function openAdd() {
     setForm(emptyForm())
@@ -83,6 +113,7 @@ export default function DispatchesPage() {
     setForm({
       truck_id: d.truck_id,
       driver_id: d.driver_id || '',
+      helper_id: d.helper_id || '',
       dispatch_date: d.dispatch_date,
       status: d.status,
       destination: d.destination || '',
@@ -90,6 +121,8 @@ export default function DispatchesPage() {
       start_mileage_km: d.start_mileage_km?.toString() || '',
       end_mileage_km: d.end_mileage_km?.toString() || '',
       note: d.note || '',
+      scheduled_departure_time: toLocalInput(d.scheduled_departure_time),
+      scheduled_arrival_time: toLocalInput(d.scheduled_arrival_time),
     })
     setEditId(d.id)
     setModal('edit')
@@ -102,10 +135,13 @@ export default function DispatchesPage() {
       const payload = {
         truck_id: form.truck_id,
         driver_id: form.driver_id || null,
+        helper_id: form.helper_id || null,
         dispatch_date: form.dispatch_date,
         status: form.status,
         destination: form.destination.trim() || null,
         purpose: form.purpose.trim() || null,
+        scheduled_departure_time: form.scheduled_departure_time ? new Date(form.scheduled_departure_time).toISOString() : null,
+        scheduled_arrival_time: form.scheduled_arrival_time ? new Date(form.scheduled_arrival_time).toISOString() : null,
         start_mileage_km: form.start_mileage_km ? Number(form.start_mileage_km) : null,
         end_mileage_km: form.end_mileage_km ? Number(form.end_mileage_km) : null,
         note: form.note.trim() || null,
@@ -143,13 +179,14 @@ export default function DispatchesPage() {
         ) : (
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Date</th><th>Truck</th><th>Driver</th><th>Destination</th><th>Out / Back</th><th>Status</th><th>Issue</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Date</th><th>Truck</th><th>Driver</th><th>Helper</th><th>Destination</th><th>Out / Back</th><th>On-Time</th><th>Status</th><th>Issue</th><th>Actions</th></tr></thead>
               <tbody>
                 {dispatches.map((d) => (
                   <tr key={d.id}>
                     <td style={{ fontFamily: 'var(--font-mono)' }}>{d.dispatch_date}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{truckPlate(d.truck_id)}</td>
                     <td>{driverName(d.driver_id)}</td>
+                    <td style={{ color: '#93a4b6' }}>{helperName(d.helper_id)}</td>
                     <td style={{ color: '#93a4b6' }}>{d.destination || '—'}</td>
                     <td style={{ fontSize: 12, color: '#93a4b6' }}>
                       {d.departure_time ? new Date(d.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
@@ -157,6 +194,7 @@ export default function DispatchesPage() {
                       {d.return_time ? new Date(d.return_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
                       {d.fuel_level_on_return && <div style={{ marginTop: 2 }}>Fuel: {FUEL_LABEL[d.fuel_level_on_return]}</div>}
                     </td>
+                    <td>{onTimeStatus(d) ? <span className={`badge ${onTimeStatus(d)!.tone}`}>{onTimeStatus(d)!.label}</span> : '—'}</td>
                     <td><span className={`badge ${STATUS_BADGE[d.status]}`}>{STATUS_LABEL[d.status]}</span></td>
                     <td>{d.has_issue ? <span className="badge badge-red" title={d.issue_note || ''}>Issue</span> : '—'}</td>
                     <td>
@@ -197,6 +235,13 @@ export default function DispatchesPage() {
                   </select>
                 </div>
               </div>
+              <div className="form-group">
+                <label className="form-label">Helper</label>
+                <select className="form-select" value={form.helper_id} onChange={(e) => setForm({ ...form, helper_id: e.target.value })}>
+                  <option value="">—</option>
+                  {helpers.filter((h) => h.id !== form.driver_id).map((h) => <option key={h.id} value={h.id}>{h.full_name}</option>)}
+                </select>
+              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Date *</label>
@@ -210,6 +255,16 @@ export default function DispatchesPage() {
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Scheduled Departure</label>
+                  <input type="datetime-local" className="form-input" value={form.scheduled_departure_time} onChange={(e) => setForm({ ...form, scheduled_departure_time: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Scheduled Arrival</label>
+                  <input type="datetime-local" className="form-input" value={form.scheduled_arrival_time} onChange={(e) => setForm({ ...form, scheduled_arrival_time: e.target.value })} />
                 </div>
               </div>
               <div className="form-group">

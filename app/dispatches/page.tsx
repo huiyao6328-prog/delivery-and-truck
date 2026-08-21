@@ -5,9 +5,11 @@ import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
 
 type Truck = { id: string; plate_no: string }
+type Employee = { id: string; full_name: string }
 type Dispatch = {
   id: string
   truck_id: string
+  helper_id: string | null
   dispatch_date: string
   status: string
   destination: string | null
@@ -16,6 +18,7 @@ type Dispatch = {
   end_mileage_km: number | null
   departure_time: string | null
   return_time: string | null
+  scheduled_departure_time: string | null
   fuel_level_on_return: string | null
   has_issue: boolean
   issue_note: string | null
@@ -24,6 +27,10 @@ type Dispatch = {
 
 const FUEL_LABEL: Record<string, string> = {
   full: 'Full', three_quarter: '3/4', half: '1/2', quarter: '1/4', empty: 'Empty',
+}
+const DELAY_REASON_LABEL: Record<string, string> = {
+  customer_change: 'Customer changed the time', weather: 'Weather', road_closure: 'Road closure',
+  production_delay: 'Production delay', traffic: 'Traffic', other: 'Other',
 }
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Not Started', in_progress: 'Out', completed: 'Returned', cancelled: 'Cancelled',
@@ -39,11 +46,13 @@ export default function MyDispatchesPage() {
   const { session, loading: sessionLoading } = useSession()
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [trucks, setTrucks] = useState<Truck[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const [departureTime, setDepartureTime] = useState('')
   const [startMileage, setStartMileage] = useState('')
+  const [delayReason, setDelayReason] = useState('')
 
   const [returnTime, setReturnTime] = useState('')
   const [endMileage, setEndMileage] = useState('')
@@ -59,21 +68,25 @@ export default function MyDispatchesPage() {
 
   async function fetchData() {
     if (!session) return
-    const [{ data: d }, { data: t }] = await Promise.all([
+    const [{ data: d }, { data: t }, { data: e }] = await Promise.all([
       supabase.from('dispatches').select('*').eq('driver_id', session.employee.id).order('dispatch_date', { ascending: false }).limit(50),
       supabase.from('trucks').select('id, plate_no'),
+      supabase.from('employees').select('id, full_name'),
     ])
     setDispatches(d || [])
     setTrucks(t || [])
+    setEmployees(e || [])
     setLoading(false)
   }
 
   function truckPlate(id: string) { return trucks.find((t) => t.id === id)?.plate_no || '—' }
+  function helperName(id: string | null) { return id ? employees.find((e) => e.id === id)?.full_name : null }
 
   function openDepart(d: Dispatch) {
     setExpandedId(d.id)
     setDepartureTime(nowLocal())
     setStartMileage('')
+    setDelayReason('')
     setError('')
   }
   function openReturn(d: Dispatch) {
@@ -94,6 +107,7 @@ export default function MyDispatchesPage() {
     const { error: err } = await supabase.from('dispatches').update({
       departure_time: new Date(departureTime).toISOString(),
       start_mileage_km: Number(startMileage),
+      delay_reason: delayReason || null,
       departed_by: session?.employee.id || null,
       status: 'in_progress',
     }).eq('id', id)
@@ -149,6 +163,8 @@ export default function MyDispatchesPage() {
                     <div>
                       <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 15, color: '#e9eef3' }}>{truckPlate(d.truck_id)}</div>
                       <div style={{ fontSize: 12, color: '#64798d', marginTop: 2 }}>{d.dispatch_date}{d.destination ? ` · ${d.destination}` : ''}</div>
+                      {helperName(d.helper_id) && <div style={{ fontSize: 11.5, color: '#64798d', marginTop: 2 }}>Helper: {helperName(d.helper_id)}</div>}
+                      {d.scheduled_departure_time && d.status === 'pending' && <div style={{ fontSize: 11.5, color: '#e3874a', marginTop: 2 }}>Scheduled: {new Date(d.scheduled_departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
                     </div>
                     <span style={{
                       fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 100,
@@ -194,6 +210,15 @@ export default function MyDispatchesPage() {
                         <label style={fieldLabel}>Starting Odometer (km)</label>
                         <input type="number" value={startMileage} onChange={(e) => setStartMileage(e.target.value)} style={fieldInput} placeholder="e.g. 84213" />
                       </div>
+                      {d.scheduled_departure_time && (
+                        <div>
+                          <label style={fieldLabel}>Running late? Why</label>
+                          <select value={delayReason} onChange={(e) => setDelayReason(e.target.value)} style={fieldInput}>
+                            <option value="">Not late / no reason to record</option>
+                            {Object.entries(DELAY_REASON_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                          </select>
+                        </div>
+                      )}
                       {error && <div style={{ color: '#f2977e', fontSize: 12.5 }}>{error}</div>}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button onClick={() => setExpandedId(null)} style={{ flex: 1, padding: '9px', border: '1px solid #28394a', borderRadius: 8, background: 'none', color: '#93a4b6', fontSize: 13.5, cursor: 'pointer' }}>Cancel</button>

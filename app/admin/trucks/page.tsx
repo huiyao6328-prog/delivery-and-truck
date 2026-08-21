@@ -18,15 +18,19 @@ type Truck = {
   note: string | null
   is_active: boolean
   kf_erp_synced_at: string | null
+  registration_expiry: string | null
+  insurance_expiry: string | null
 }
 
 type Form = {
   plate_no: string; truck_type_id: string; owner_id: string
   length_cm: string; width_cm: string; height_cm: string; max_load_kg: string
   note: string; is_active: boolean
+  registration_expiry: string; insurance_expiry: string
 }
 const emptyForm: Form = {
   plate_no: '', truck_type_id: '', owner_id: '', length_cm: '', width_cm: '', height_cm: '', max_load_kg: '', note: '', is_active: true,
+  registration_expiry: '', insurance_expiry: '',
 }
 
 export default function TrucksPage() {
@@ -41,8 +45,10 @@ export default function TrucksPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
-  const [sortKey, setSortKey] = useState<'plate_no' | 'type' | 'owner' | 'length_cm' | 'max_load_kg' | 'source' | 'is_active'>('plate_no')
+  const [sortKey, setSortKey] = useState<'plate_no' | 'type' | 'owner' | 'length_cm' | 'max_load_kg' | 'source' | 'is_active' | 'registration_expiry' | 'insurance_expiry'>('plate_no')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [ownerFilter, setOwnerFilter] = useState('')
+  const [searchText, setSearchText] = useState('')
 
   useEffect(() => { fetchAll() }, [])
 
@@ -66,6 +72,13 @@ export default function TrucksPage() {
     return owners.find((o) => o.id === id)?.name || '—'
   }
 
+  function expiryCell(date: string | null) {
+    if (!date) return <span style={{ fontFamily: 'var(--font-mono)', color: '#93a4b6' }}>—</span>
+    const daysLeft = Math.round((new Date(date + 'T00:00:00').getTime() - Date.now()) / 86400000)
+    const color = daysLeft < 0 ? '#f2977e' : daysLeft <= 30 ? '#e3a45e' : '#93a4b6'
+    return <span style={{ fontFamily: 'var(--font-mono)', color }}>{date}</span>
+  }
+
   function toggleSort(key: typeof sortKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -74,6 +87,15 @@ export default function TrucksPage() {
       setSortDir('asc')
     }
   }
+
+  const filteredTrucks = useMemo(() => {
+    const q = searchText.trim().toLowerCase()
+    return trucks.filter((t) => {
+      if (ownerFilter && t.owner_id !== ownerFilter) return false
+      if (q && !t.plate_no.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [trucks, ownerFilter, searchText])
 
   const sortedTrucks = useMemo(() => {
     const withValue = (t: Truck) => {
@@ -85,9 +107,11 @@ export default function TrucksPage() {
         case 'max_load_kg': return t.max_load_kg ?? -1
         case 'source': return t.kf_erp_synced_at ? 'kf-erp' : 'local'
         case 'is_active': return t.is_active ? 1 : 0
+        case 'registration_expiry': return t.registration_expiry ?? ''
+        case 'insurance_expiry': return t.insurance_expiry ?? ''
       }
     }
-    const sorted = [...trucks].sort((a, b) => {
+    const sorted = [...filteredTrucks].sort((a, b) => {
       const va = withValue(a)
       const vb = withValue(b)
       if (va < vb) return -1
@@ -97,7 +121,7 @@ export default function TrucksPage() {
     if (sortDir === 'desc') sorted.reverse()
     return sorted
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trucks, types, owners, sortKey, sortDir])
+  }, [filteredTrucks, types, owners, sortKey, sortDir])
 
   function SortHeader({ label, sortKeyName }: { label: string; sortKeyName: typeof sortKey }) {
     const active = sortKey === sortKeyName
@@ -126,6 +150,8 @@ export default function TrucksPage() {
       max_load_kg: t.max_load_kg?.toString() || '',
       note: t.note || '',
       is_active: t.is_active,
+      registration_expiry: t.registration_expiry || '',
+      insurance_expiry: t.insurance_expiry || '',
     })
     setEditId(t.id)
     setModal('edit')
@@ -145,6 +171,8 @@ export default function TrucksPage() {
         max_load_kg: form.max_load_kg ? Number(form.max_load_kg) : null,
         note: form.note.trim() || null,
         is_active: form.is_active,
+        registration_expiry: form.registration_expiry || null,
+        insurance_expiry: form.insurance_expiry || null,
       }
       if (modal === 'add') await supabase.from('trucks').insert([payload])
       else await supabase.from('trucks').update(payload).eq('id', editId)
@@ -189,7 +217,7 @@ export default function TrucksPage() {
       <div className="page-header">
         <div>
           <div className="page-title">Trucks</div>
-          <div className="page-sub">{trucks.length} truck(s)</div>
+          <div className="page-sub">{sortedTrucks.length} of {trucks.length} truck(s)</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary" onClick={syncFromKfErp} disabled={syncing}>
@@ -197,6 +225,20 @@ export default function TrucksPage() {
           </button>
           <button className="btn btn-primary" onClick={openAdd}>+ Add Truck</button>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <select className="form-select" style={{ maxWidth: 220 }} value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
+          <option value="">All Owners</option>
+          {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+        <input
+          className="form-input"
+          style={{ maxWidth: 260 }}
+          placeholder="Search plate no."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
       </div>
 
       {syncResult && (
@@ -227,6 +269,8 @@ export default function TrucksPage() {
                   <SortHeader label="Max Load (kg)" sortKeyName="max_load_kg" />
                   <SortHeader label="Source" sortKeyName="source" />
                   <SortHeader label="Status" sortKeyName="is_active" />
+                  <SortHeader label="Registration Exp." sortKeyName="registration_expiry" />
+                  <SortHeader label="Insurance Exp." sortKeyName="insurance_expiry" />
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -242,6 +286,8 @@ export default function TrucksPage() {
                     <td style={{ fontFamily: 'var(--font-mono)' }}>{t.max_load_kg ?? '—'}</td>
                     <td>{t.kf_erp_synced_at ? <span className="badge badge-blue">kf-erp</span> : <span className="badge badge-gray">Local</span>}</td>
                     <td>{t.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</td>
+                    <td>{expiryCell(t.registration_expiry)}</td>
+                    <td>{expiryCell(t.insurance_expiry)}</td>
                     <td>
                       <div className="actions">
                         <Link className="action-btn" style={{ background: '#e3efe4', color: '#26592c' }} href={`/admin/trucks/${t.id}/checklist`}>Checklist</Link>
@@ -296,6 +342,17 @@ export default function TrucksPage() {
               <div className="form-group">
                 <label className="form-label">Max Load (kg)</label>
                 <input type="number" className="form-input" value={form.max_load_kg} onChange={(e) => setForm({ ...form, max_load_kg: e.target.value })} />
+              </div>
+              <div className="form-label" style={{ marginTop: 4 }}>Compliance</div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Registration Expiry</label>
+                  <input type="date" className="form-input" value={form.registration_expiry} onChange={(e) => setForm({ ...form, registration_expiry: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Insurance Expiry</label>
+                  <input type="date" className="form-input" value={form.insurance_expiry} onChange={(e) => setForm({ ...form, insurance_expiry: e.target.value })} />
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Note</label>

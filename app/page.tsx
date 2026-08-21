@@ -87,7 +87,18 @@ export default function HomePage() {
           <div style={styles.arrow}>→</div>
         </Link>
 
-        <Link href="/improvement" style={styles.settingsCard}>
+        <Link href="/accident" style={styles.settingsCard}>
+          <div style={{ ...styles.cardIconWrap, background: 'rgba(242,151,126,0.18)', color: '#f2977e' }}>
+            <AlertIcon />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={styles.primaryCardTitle}>Accident Reports</div>
+            <div style={styles.primaryCardSub}>Report an accident, or check the status of one you filed</div>
+          </div>
+          <div style={styles.arrow}>→</div>
+        </Link>
+
+        <Link href={hasAnyBackOfficeAccess(session) ? '/admin/improvement-progress' : '/improvement'} style={styles.settingsCard}>
           <div style={{ ...styles.cardIconWrap, background: 'rgba(255,255,255,0.08)' }}>
             <WrenchIcon />
           </div>
@@ -100,6 +111,19 @@ export default function HomePage() {
           </div>
           <div style={styles.arrow}>→</div>
         </Link>
+
+        {hasAnyBackOfficeAccess(session) && (
+          <Link href="/admin/driver-readiness" style={styles.settingsCard}>
+            <div style={{ ...styles.cardIconWrap, background: 'rgba(255,255,255,0.08)' }}>
+              <PersonCheckIcon />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={styles.primaryCardTitle}>Personnel Readiness Check</div>
+              <div style={styles.primaryCardSub}>Supervisor confirmation of drivers &amp; helpers before dispatch — alcohol, fatigue, medical condition</div>
+            </div>
+            <div style={styles.arrow}>→</div>
+          </Link>
+        )}
 
         {hasAnyBackOfficeAccess(session) && (
           <Link href="/admin" style={styles.settingsCard}>
@@ -156,6 +180,26 @@ function TruckIcon() {
       <path d="M16 8h4l3 3v5h-7V8z" />
       <circle cx="5.5" cy="18.5" r="2.5" />
       <circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  )
+}
+
+function AlertIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
+
+function PersonCheckIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="7" r="4" />
+      <path d="M2 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 3.87 3" />
+      <path d="m16 16 2 2 4-4" />
     </svg>
   )
 }
