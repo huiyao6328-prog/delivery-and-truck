@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Action = {
   id: string
@@ -79,7 +80,15 @@ export default function ImprovementListPage() {
   return (
     <div className="il-app">
       <header className="il-header">
-        <Link href="/" className="il-back">← Home</Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
+          <Link href="/" className="il-back" aria-label="Back to Home">🏠 Home</Link>
+          <HelpButton title="Improvement Progress">
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>Lists defects reported from your Daily Inspections, tracked through to fix and sign-off.</li>
+              <li>Tap a case to see its status and severity; "Open" shows only unclosed cases.</li>
+            </ul>
+          </HelpButton>
+        </div>
         <div className="il-title">Improvement Progress</div>
         <div className="il-tabs">
           <button className={filter === 'open' ? 'active' : ''} onClick={() => setFilter('open')}>Open</button>

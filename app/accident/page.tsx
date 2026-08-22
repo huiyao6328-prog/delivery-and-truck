@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Report = {
   id: string
@@ -52,7 +53,15 @@ export default function AccidentListPage() {
   return (
     <div className="ac-app">
       <header className="ac-header">
-        <Link href="/" className="ac-back">← Home</Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
+          <Link href="/" className="ac-back" aria-label="Back to Home">🏠 Home</Link>
+          <HelpButton title="Accident Reports">
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>"+ Report" opens the accident report form — use it for actual collisions/incidents, not routine vehicle defects (those go through Daily Inspection).</li>
+              <li>Tap any report to see its status and what the office has done with it.</li>
+            </ul>
+          </HelpButton>
+        </div>
         <div className="ac-header-row">
           <div className="ac-title">Accident Reports</div>
           <Link href="/accident/new" className="ac-report-btn">+ Report</Link>

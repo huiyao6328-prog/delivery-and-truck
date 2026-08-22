@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 export default function AccountPage() {
   const { session, loading } = useSession()
@@ -73,8 +74,16 @@ export default function AccountPage() {
   return (
     <div style={styles.page}>
       <header style={styles.header}>
-        <Link href="/" style={styles.back}>← Back</Link>
         <div style={styles.brand}>My Account</div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Link href="/" style={styles.back} aria-label="Back to Home">🏠 Home</Link>
+          <HelpButton title="My Account">
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>Change your login username or reset your own password here.</li>
+              <li>Leave the password field blank to keep your current one.</li>
+            </ul>
+          </HelpButton>
+        </div>
       </header>
 
       <main style={styles.main}>

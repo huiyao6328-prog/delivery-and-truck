@@ -3,8 +3,161 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useSession, clearSession, access } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 const BASE = '/admin'
+
+type HelpEntry = { title: string; points: string[] }
+const HELP_CONTENT: Record<string, HelpEntry> = {
+  [BASE]: {
+    title: 'Dashboard',
+    points: [
+      'Pick a year and month at the top — only the calendar-bound KPIs (Registration/Insurance Expiring, Driver Issues, Inspection Compliance) change with it. The others are live "right now" counts.',
+      'Every number only counts trucks whose owner is flagged "Default Fleet" in Truck Owners.',
+      'The cards below the KPI boxes show today\'s activity only.',
+    ],
+  },
+  [`${BASE}/employees`]: {
+    title: 'Employees',
+    points: [
+      'Click any column header to sort; click again to reverse.',
+      'Role Level 1 can only be held by one person at a time — the system enforces this.',
+      'Job Title follows Role Level automatically (edit the mapping under Role Titles).',
+      '"Maintenance Responsible For" controls which trucks show as this person\'s Assigned Vehicle on Personnel Readiness checks, and feeds their Vehicle Score on the KPI Dashboard.',
+    ],
+  },
+  [`${BASE}/role-titles`]: {
+    title: 'Role Titles',
+    points: [
+      'Sets the job title shown for each Employee Role Level (1 = highest authority).',
+      'This is a shared mapping, not stored per employee — changing a title here updates it everywhere immediately.',
+    ],
+  },
+  [`${BASE}/permission-groups`]: {
+    title: 'Permission Groups',
+    points: [
+      'Each group sets access (None / Read / Edit) per back-office module.',
+      'Assign a group to an employee from the Employees page — that\'s what controls which sidebar items they see.',
+      'Permissions are cached in the browser at login — anyone newly granted a module needs to log out and back in to see it.',
+    ],
+  },
+  [`${BASE}/truck-types`]: {
+    title: 'Vehicle Type',
+    points: ['Manages the vehicle type list used when adding/editing a truck.'],
+  },
+  [`${BASE}/truck-owners`]: {
+    title: 'Truck Owners',
+    points: [
+      'Whether a truck is company-owned or belongs to a contracted trucking company.',
+      'The "Default Fleet" checkbox is what scopes the Dashboard, Improvement Progress, Accidents, and KPI Dashboard to your own trucks.',
+    ],
+  },
+  [`${BASE}/trucks`]: {
+    title: 'Trucks',
+    points: [
+      'Filter by owner or search by plate number; click column headers to sort.',
+      'Registration/Insurance Expiry dates here feed the Dashboard\'s expiring-soon KPIs.',
+      '"Checklist" opens this truck\'s own inspection item overrides.',
+    ],
+  },
+  [`${BASE}/dispatches`]: {
+    title: 'Dispatch Records',
+    points: [
+      'Assign the truck, driver, and (optionally) helper here — actual departure/return get filled in by the driver in their own app.',
+      'Scheduled Departure/Arrival feed the On-Time column and the KPI Dashboard\'s On-Time metric; leave them blank if you don\'t track a schedule for that trip.',
+    ],
+  },
+  [`${BASE}/inspections`]: {
+    title: 'Daily Inspections',
+    points: [
+      'Two tabs: "All Inspections" (one row per submission) and "Defect Items" (every individual failed checklist item, flattened across all inspections).',
+      'Filter by truck owner, truck, date range, or result; Export Excel respects your current filters.',
+    ],
+  },
+  [`${BASE}/driver-readiness`]: {
+    title: 'Personnel Readiness Check',
+    points: [
+      '"+ New Check" logs a supervisor\'s daily confirmation for one driver or helper.',
+      '"⚙ Check Items" configures what gets checked — each item can be a checkbox or a text box.',
+      'Every item defaults to fail — the supervisor has to actively confirm each one.',
+    ],
+  },
+  [`${BASE}/improvement-progress`]: {
+    title: 'Improvement Progress',
+    points: [
+      'Tracks defects found during Daily Inspections through to close-out — separate from Accidents, which is for actual collisions.',
+      'Severity, repair type/cost, and assignment are all editable per case; the detail page walks through classification → investigation → verification.',
+      'Filters + sorting at the top; Export Excel respects your current filters.',
+    ],
+  },
+  [`${BASE}/accidents`]: {
+    title: 'Accidents',
+    points: [
+      'For actual accidents/collisions — separate from Improvement Progress, which tracks routine vehicle defects.',
+      'Report Latency is colored by how long it took the driver to report after it happened.',
+      'Click Open on a case to classify severity (L1–L4), investigate, and close it out.',
+    ],
+  },
+  [`${BASE}/accidents/`]: {
+    title: 'Accident Detail',
+    points: [
+      'Three sections: Classification & Assignment, Investigation & Notifications, then Verification & Close — each saves independently.',
+      '"Export Word" produces a formal report document with signature lines, usable by both the office and the driver who filed it.',
+    ],
+  },
+  [`${BASE}/customer-complaints`]: {
+    title: 'Customer Complaints',
+    points: ['Log complaints as they come in by phone/email — there\'s no driver-facing side to this module.'],
+  },
+  [`${BASE}/fuel-costs`]: {
+    title: 'Fuel & Cost',
+    points: [
+      'Upload the Shell fuel card\'s monthly statement (.xlsx) — plates are matched to trucks automatically, and rows already imported are skipped safely if you re-upload the same file.',
+      'Plates that don\'t match any truck get listed so you can assign them by hand.',
+      'Odometer readings aren\'t always recorded reliably in the source file, so only totals (liters, cost) are shown — not efficiency.',
+    ],
+  },
+  [`${BASE}/kpi`]: {
+    title: 'KPI Dashboard',
+    points: [
+      'Pick a year/month, and optionally filter to one Role Level.',
+      'Vehicle Score is bound to standing "Maintenance Responsible For" assignments on Employees, not to driving activity.',
+      'On-Time Delivery and Delivery Accuracy are shown as placeholders — there\'s no data source for either yet.',
+    ],
+  },
+  [`${BASE}/inspection-settings`]: {
+    title: 'Inspection Settings',
+    points: [
+      'Manages the daily checklist categories and items drivers see in Daily Inspection.',
+      '"✨ AI Suggest" asks Gemini to classify an item\'s default severity — you can still override it.',
+      '"AI Review Log" at the bottom shows past automated audits, or lets you run one on demand.',
+    ],
+  },
+  [`${BASE}/pack-boxes`]: {
+    title: 'Carton Types',
+    points: ['Manages carton/box dimensions and weights used by the Load Calculator.'],
+  },
+  [`${BASE}/load-calculator`]: {
+    title: 'Load Calculator',
+    points: [
+      'Estimates how many of a given carton fit onto a truck by volume and weight.',
+      'Formulas are documented in 貨車裝載試算-專案交接文件.md — don\'t change the math without reading that first.',
+    ],
+  },
+  [`${BASE}/trucks/`]: {
+    title: 'Truck Checklist',
+    points: [
+      'Per-truck override of the daily inspection checklist: exclude a global item for just this truck, or add a truck-only item.',
+    ],
+  },
+}
+
+function helpFor(pathname: string): HelpEntry | null {
+  if (HELP_CONTENT[pathname]) return HELP_CONTENT[pathname]
+  const prefixes = Object.keys(HELP_CONTENT).filter((k) => k !== BASE && pathname.startsWith(k))
+  prefixes.sort((a, b) => b.length - a.length)
+  return prefixes.length ? HELP_CONTENT[prefixes[0]] : null
+}
 
 const navItems: { label: string; href: string; functionCode: string }[] = [
   { label: 'Dashboard', href: BASE, functionCode: '__dashboard__' },
@@ -47,6 +200,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     )
   }
+
+  const pageHelp = helpFor(pathname)
 
   const visibleItems = navItems.filter(
     (item) => item.functionCode === '__dashboard__' || access(session, item.functionCode) !== 'none'
@@ -91,8 +246,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             ☰
           </button>
           <div className="topbar-right">
+            <Link href="/" className="topbar-home" aria-label="Back to Home">🏠 Home</Link>
             <Link href="/account" className="topbar-account">Account</Link>
             <span className="topbar-user">{session.employee.full_name} · {session.employee.code}</span>
+            {pageHelp && (
+              <HelpButton title={pageHelp.title}>
+                <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {pageHelp.points.map((p, i) => <li key={i}>{p}</li>)}
+                </ul>
+              </HelpButton>
+            )}
           </div>
         </header>
         <main className="admin-content">{children}</main>
@@ -146,6 +309,8 @@ const globalStyles = `
   }
   .menu-toggle { display: none; background: none; border: none; cursor: pointer; font-size: 18px; color: #e9eef3; }
   .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .topbar-home { font-size: 13px; color: #93a4b6; text-decoration: none; padding: 5px 10px; border: 1px solid #28394a; border-radius: 7px; }
+  .topbar-home:hover { color: #e9eef3; border-color: #3a4d61; }
   .topbar-account { font-size: 13px; color: #7fb2ff; text-decoration: none; }
   .topbar-account:hover { text-decoration: underline; }
   .topbar-user { font-size: 13.5px; color: #93a4b6; font-weight: 600; }

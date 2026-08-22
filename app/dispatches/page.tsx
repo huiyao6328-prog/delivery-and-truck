@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Truck = { id: string; plate_no: string }
 type Employee = { id: string; full_name: string }
@@ -145,8 +146,17 @@ export default function MyDispatchesPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#0f1b28' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', background: '#16232f', borderBottom: '1px solid #26374a', position: 'sticky', top: 0 }}>
-        <Link href="/" style={{ fontSize: 13, color: '#93a4b6', textDecoration: 'none' }}>← Back</Link>
         <div style={{ fontSize: 16, fontWeight: 800, color: '#e9eef3' }}>My Dispatches</div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Link href="/" style={{ fontSize: 13, color: '#93a4b6', textDecoration: 'none' }} aria-label="Back to Home">🏠 Home</Link>
+          <HelpButton title="My Dispatches">
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>"Start Trip" records your departure time and starting odometer.</li>
+              <li>If a scheduled time was set for the trip, you can pick a reason here if you're running late.</li>
+              <li>"Mark Returned" records your return, ending odometer, fuel level, and any issue found.</li>
+            </ul>
+          </HelpButton>
+        </div>
       </header>
 
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 40px' }}>

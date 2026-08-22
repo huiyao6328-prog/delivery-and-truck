@@ -3,6 +3,7 @@ import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Report = {
   id: string
@@ -68,7 +69,16 @@ export default function AccidentDetailPage({ params }: { params: Promise<{ id: s
       <header className="ad-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/accident" className="ad-back">← Accident Reports</Link>
-          <a href={`/api/accidents/${report.id}/export-word`} style={{ fontSize: 12, color: '#93a4b6', textDecoration: 'none' }}>⬇ Export Word</a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <a href={`/api/accidents/${report.id}/export-word`} style={{ fontSize: 12, color: '#93a4b6', textDecoration: 'none' }}>⬇ Export Word</a>
+            <Link href="/" style={{ fontSize: 12, color: '#93a4b6', textDecoration: 'none' }} aria-label="Back to Home">🏠 Home</Link>
+            <HelpButton title="Accident Report">
+              <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <li>Read-only view of what you reported and what the office has classified/done so far.</li>
+                <li>"Export Word" downloads a formal copy of this report.</li>
+              </ul>
+            </HelpButton>
+          </div>
         </div>
       </header>
 

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Truck = { id: string; plate_no: string }
 type Category = { id: string; sort_order: number; name: string; description: string | null }
@@ -181,10 +182,19 @@ export default function NewInspectionPage() {
       <header className="ins-header">
         <div className="ins-header-top">
           <div className="ins-header-left">
-            <Link href="/" className="ins-home-btn" aria-label="Back to home">←&nbsp;Home</Link>
             <div className="ins-brand"><b>Delivery&nbsp;&amp;&nbsp;Truck</b> · Daily Inspection</div>
           </div>
-          <div className="ins-doc-label">FORM DVI-01</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="ins-doc-label">FORM DVI-01</div>
+            <Link href="/" className="ins-home-btn" aria-label="Back to home">🏠&nbsp;Home</Link>
+            <HelpButton title="Daily Inspection">
+              <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <li>Pick your truck, then go through each category — mark every item OK, Issue, or N/A.</li>
+                <li>Marking an item "Issue" lets you add a note and photo, and automatically opens a case in Improvement Progress.</li>
+                <li>Enter the odometer reading before submitting.</li>
+              </ul>
+            </HelpButton>
+          </div>
         </div>
         <div className="ins-header-fields">
           <div className="ins-field ins-field-truck">

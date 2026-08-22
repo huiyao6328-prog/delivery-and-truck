@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Action = {
   id: string
@@ -157,7 +158,19 @@ export default function ImprovementDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="ip-app">
       <header className="ip-header">
-        <Link href="/improvement" className="ip-back">← Improvement Progress</Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/improvement" className="ip-back">← Improvement Progress</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Link href="/" className="ip-back" aria-label="Back to Home">🏠 Home</Link>
+            <HelpButton title="Case Detail">
+              <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <li>Assessment & Deadline: set severity, who's assigned, and the repair deadline.</li>
+                <li>Remediation & Progress: the assigned person logs work done here.</li>
+                <li>Verification & Sign-off: a supervisor confirms the fix and closes the case — a failed verification sends it back for rework.</li>
+              </ul>
+            </HelpButton>
+          </div>
+        </div>
       </header>
 
       <main className="ip-main">

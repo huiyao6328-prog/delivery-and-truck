@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import AdminLayout from '@/components/admin/AdminLayout'
 
 type TruckType = { id: string; name: string }
-type TruckOwner = { id: string; name: string }
+type TruckOwner = { id: string; name: string; is_default: boolean }
 type Truck = {
   id: string
   plate_no: string
@@ -57,11 +57,13 @@ export default function TrucksPage() {
     const [{ data: t }, { data: ty }, { data: ow }] = await Promise.all([
       supabase.from('trucks').select('*').order('plate_no'),
       supabase.from('truck_types').select('id, name').order('name'),
-      supabase.from('truck_owners').select('id, name').eq('is_active', true).order('name'),
+      supabase.from('truck_owners').select('id, name, is_default').eq('is_active', true).order('name'),
     ])
     setTrucks(t || [])
     setTypes(ty || [])
     setOwners(ow || [])
+    const defaultOwner = (ow || []).find((o) => o.is_default)
+    if (defaultOwner) setOwnerFilter(defaultOwner.id)
     setLoading(false)
   }
 
@@ -229,8 +231,9 @@ export default function TrucksPage() {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <select className="form-select" style={{ maxWidth: 220 }} value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)}>
+          {owners.filter((o) => o.is_default).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           <option value="">All Owners</option>
-          {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          {owners.filter((o) => !o.is_default).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
         <input
           className="form-input"

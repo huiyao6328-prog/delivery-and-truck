@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useSession, clearSession, hasAnyBackOfficeAccess } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Inspection = {
   id: string
@@ -56,9 +57,16 @@ export default function HomePage() {
     <div style={styles.page}>
       <header style={styles.header}>
         <div style={styles.brand}>Delivery&nbsp;&amp;&nbsp;<span style={{ color: '#c85a26' }}>Truck</span></div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Link href="/account" style={styles.logout}>Account</Link>
           <button onClick={handleLogout} style={styles.logout}>Log Out</button>
+          <HelpButton title="Home">
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>Each card opens one function — Daily Inspection, Dispatches, Accident Reports, Improvement Progress, Personnel Readiness Check, and (if you have back-office access) Settings.</li>
+              <li>The badge on Improvement Progress shows how many defects are still open.</li>
+              <li>Recent Inspections below shows your own last 10 submissions.</li>
+            </ul>
+          </HelpButton>
         </div>
       </header>
 

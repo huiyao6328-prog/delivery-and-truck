@@ -7,3 +7,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+.claude/settings.local.json
+supabase/.temp/
+check-password.js

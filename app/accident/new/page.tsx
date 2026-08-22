@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Truck = { id: string; plate_no: string; owner_id: string | null }
 type TruckOwner = { id: string; name: string; is_default: boolean }
@@ -100,7 +101,19 @@ export default function NewAccidentPage() {
   return (
     <div className="an-app">
       <header className="an-header">
-        <Link href="/accident" className="an-back">← Accident Reports</Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/accident" className="an-back">← Accident Reports</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Link href="/" className="an-back" aria-label="Back to Home">🏠 Home</Link>
+            <HelpButton title="Report an Accident">
+              <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <li>Pick the Truck Owner first to narrow the truck list, or leave it as "All owners".</li>
+                <li>The "At the scene" checklist is what you actually did — leave boxes unchecked if you didn't do them.</li>
+                <li>Submit as soon as it's safe — how long it takes you to report is tracked.</li>
+              </ul>
+            </HelpButton>
+          </div>
+        </div>
         <div className="an-title">Report an Accident</div>
         <div className="an-sub">Fill this in as soon as it's safe to do so — the time between the accident and this report matters.</div>
       </header>

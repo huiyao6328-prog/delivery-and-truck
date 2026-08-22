@@ -3,6 +3,7 @@ import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useSession } from '@/lib/useSession'
+import HelpButton from '@/components/HelpButton'
 
 type Inspection = {
   id: string
@@ -55,7 +56,14 @@ export default function InspectionDetailPage({ params }: { params: Promise<{ id:
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', minHeight: '100vh', background: '#0f1b28' }}>
       <header style={{ background: '#16232f', borderBottom: '1px solid #26374a', padding: '14px 16px' }}>
-        <Link href="/" style={{ fontSize: 12.5, color: '#64798d', textDecoration: 'none' }}>← Back</Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
+          <Link href="/" style={{ fontSize: 12.5, color: '#64798d', textDecoration: 'none' }} aria-label="Back to Home">🏠 Home</Link>
+          <HelpButton title="Inspection Detail">
+            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>Read-only record of what you submitted for this inspection, grouped by category.</li>
+            </ul>
+          </HelpButton>
+        </div>
         <div style={{ fontSize: 18, fontWeight: 700, color: '#e9eef3', marginTop: 6 }}>
           {truckPlate} · {inspection.inspection_date}
         </div>
